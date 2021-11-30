@@ -132,7 +132,7 @@ void propagateContaminationToCitizens(const Citizen* pSource)
 
 // ----------------------- SICKNESS -----------------------
 
-int computeRiskOfDying(const Citizen* pCitizen)
+float computeRiskOfDying(const Citizen* pCitizen)
 {
     const Tile tile = getTile(pCitizen->x, pCitizen->y);
 
@@ -171,7 +171,10 @@ void updateSickness(Citizen* pCitizen)
 
         if (pCitizen->sick)
         {
-            if (pCitizen->dayOfSickness > 5 && genFloat() < computeRiskOfDying(pCitizen))
+            float rValue = genFloat();
+            float risk = computeRiskOfDying(pCitizen);
+
+            if (pCitizen->dayOfSickness > 5 && rValue < risk)
             {
                 pCitizen->alive = false;
             }

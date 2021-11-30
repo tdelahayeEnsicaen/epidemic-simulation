@@ -173,9 +173,9 @@ void propagateContaminationToCitizens(const Citizen* pSource);
  * 
  * @param pCitizen Sick citizen
  *  
- * @return int 
+ * @return float 
  */
-int computeRiskOfDying(const Citizen* pCitizen);
+float computeRiskOfDying(const Citizen* pCitizen);
 
 void updateSickness(Citizen* pCitizen);
 

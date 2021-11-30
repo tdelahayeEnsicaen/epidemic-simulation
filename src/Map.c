@@ -52,6 +52,7 @@ void createMap()
 
 void loadMap()
 {
+    srand(time(NULL));
     fd = shm_open("/map", O_RDWR, 0666);
 
     if (fd == -1)
