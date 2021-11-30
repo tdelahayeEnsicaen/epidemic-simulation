@@ -1,18 +1,11 @@
 #include "EpidemicSim.h"
+#include "Process.h"
 
 #include "Map.h"
 
-#include <pthread.h>
-#include <memory.h>
 #include <stdlib.h>
-#include <time.h>
-
 #include <stdio.h>
-#include <unistd.h>
 #include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <stdbool.h>
 
 FILE* pFile;
 
@@ -23,62 +16,26 @@ FILE* pFile;
 
 int tubes[4];
 
-enum Action
-{
-    INIT,
-    UPDATE,
-    DESTROY
-};
-
-int openTube(char* name, int flags)
-{
-    unlink(name);
-
-    int tube = mkfifo(name, 0644);
-
-    if (tube == -1)
-    {
-        fprintf(stderr, "Failled to create tube: %s\n", name);
-        exit(EXIT_FAILURE);
-    }
-
-    tube = open(name, flags);
-
-    if (tube == -1)
-    {
-        fprintf(stderr, "Failled to open tube: %s\n", name);
-        exit(EXIT_FAILURE);
-    }
-
-    return tube;
-}
-
 void openTubes()
 {
     printf("[EPI] Open tubes\n");
 
-    tubes[SIM_TO_CITIZEN] = openTube("./sim_to_citizen", O_WRONLY);
-    tubes[CITIZEN_TO_SIM] = openTube("./citizen_to_sim", O_RDONLY);
+    tubes[SIM_TO_CITIZEN] = openTube(SIM_TO_CITIZEN_NAME, O_WRONLY, true);
+    tubes[CITIZEN_TO_SIM] = openTube(CITIZEN_TO_SIM_NAME, O_RDONLY, true);
 
-    tubes[SIM_TO_TIMER] = openTube("./sim_to_timer", O_WRONLY);
-    tubes[TIMER_TO_SIM] = openTube("./timer_to_sim", O_RDONLY);
+    tubes[SIM_TO_TIMER] = openTube(SIM_TO_TIMER_NAME, O_WRONLY, true);
+    tubes[TIMER_TO_SIM] = openTube(TIMER_TO_SIM_NAME, O_RDONLY, true);
 }
 
 void closeTubes()
 {
     printf("[EPI] Close tubes\n");
 
-    close(tubes[SIM_TO_CITIZEN]);
-    close(tubes[CITIZEN_TO_SIM]);
+    closeTube(SIM_TO_CITIZEN_NAME, tubes[SIM_TO_CITIZEN], true);
+    closeTube(CITIZEN_TO_SIM_NAME, tubes[CITIZEN_TO_SIM], true);
 
-    unlink("./sim_to_citizen");
-    unlink("./citizen_to_sim");
-
-    close(tubes[SIM_TO_TIMER]);
-    close(tubes[TIMER_TO_SIM]);
-
-    unlink("./sim_to_timer");
-    unlink("./timer_to_sim");
+    closeTube(SIM_TO_TIMER_NAME, tubes[SIM_TO_TIMER], true);
+    closeTube(TIMER_TO_SIM_NAME, tubes[TIMER_TO_SIM], true);
 }
 
 int main()
@@ -91,9 +48,8 @@ int main()
 
     while (isRunning)
     {
-        enum Action action;
+        enum ProcessAction action = readAction(tubes[TIMER_TO_SIM]);
         bool result;
-        read(tubes[TIMER_TO_SIM], &action, sizeof(enum Action));
 
         switch(action)
         {
@@ -101,24 +57,27 @@ int main()
             printf("[EPI] Initialization\n");
             initSimulation();
             printf("[EPI] Running\n");
-            result = true;
+
+            result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], INIT);
+
+            saveMap(pFile);
             break;
 
         case UPDATE:
             printf("[EPI] Update\n");
-            saveMap(pFile);
-
-            write(tubes[SIM_TO_CITIZEN], &action, sizeof(enum Action));
-
             updateSimulation();
 
-            read(tubes[CITIZEN_TO_SIM], &result, sizeof(bool));
+            result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], UPDATE);
+
+            saveMap(pFile);
             break;
 
         case DESTROY:
+            result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], DESTROY);
+
             printf("[EPI] Destroy\n");
             destroySimulation();
-            result = true;
+
             isRunning = false;
             break;
 
@@ -128,7 +87,7 @@ int main()
             break;
         }
 
-        write(tubes[SIM_TO_TIMER], &result, sizeof(bool));
+        sendResult(tubes[SIM_TO_TIMER], result);
     }
 
     return 0;
@@ -145,12 +104,6 @@ void initSimulation()
     }
 
     createMap();
-
-    enum Action action = INIT;
-    write(tubes[SIM_TO_CITIZEN], &action, sizeof(enum Action));
-
-    bool result;
-    read(tubes[CITIZEN_TO_SIM], &result, sizeof(bool));
 }
 
 void propagateContamination(Tile src, int xDest, int yDest);
@@ -197,12 +150,6 @@ void propagateContamination(Tile src, int xDest, int yDest)
 
 void destroySimulation()
 {
-    enum Action action = DESTROY;
-    write(tubes[SIM_TO_CITIZEN], &action, sizeof(enum Action));
-
-    bool result;
-    read(tubes[CITIZEN_TO_SIM], &result, sizeof(bool));
-
     destroyMap();
     closeTubes();
 }

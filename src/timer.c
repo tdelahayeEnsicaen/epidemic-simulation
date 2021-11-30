@@ -1,44 +1,31 @@
-#include <pthread.h>
-#include <memory.h>
+#include "Process.h"
+
 #include <stdlib.h>
-#include <time.h>
 
 #include <stdio.h>
 #include <signal.h>
+
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <stdbool.h>
-
-#define TURN_LIMIT 100
 
 #define ARG_COUNT 2
 #define USAGE_FORMAT "%s [Period(in seconds)]\n"
 
 int turnCounter = 0;
 int period;
-pid_t targetPid;
-
-enum Action
-{
-    INIT,
-    UPDATE,
-    DESTROY
-};
 
 #define SIM_TO_TIMER 0
 #define TIMER_TO_SIM 1
 
 int tubes[2];
 
-int openTube(char* name, int flags)
+int openTube(const char* name, int flags)
 {
     int tube = open(name, flags);
 
     if (tube == -1)
     {
-        fprintf(stderr, "Failled to open tube: %s\n", name);
+        fprintf(stderr, "Failed to open tube: %s\n", name);
         exit(EXIT_FAILURE);
     }
 
@@ -66,7 +53,7 @@ void tick(int sig)
     printf("[TIM] Update %d/%d\n", turnCounter, TURN_LIMIT);
     sig = sig;
 
-    enum Action action = UPDATE;
+    enum ProcessAction action = UPDATE;
     write(tubes[TIMER_TO_SIM], &action, sizeof(action));
 
     bool result;
@@ -116,7 +103,7 @@ int main(int argc, char const *argv[])
 
     printf("[TIM] Initialization\n");
 
-    enum Action action = INIT;
+    enum ProcessAction action = INIT;
     write(tubes[TIMER_TO_SIM], &action, sizeof(action));
 
     bool result;

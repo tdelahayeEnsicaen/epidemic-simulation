@@ -1,0 +1,93 @@
+#include "Firefighter.h"
+
+#include <memory.h>
+
+void burnDeadBody(const Citizen* pFirefighter)
+{
+    for (int i=0; i < CITIZEN_COUNT; i++)
+    {
+        Citizen* pCitizen = getCitizen(i);
+
+        lockCitizen(pCitizen);
+
+        if (!pCitizen->alive && !pCitizen->burned && pCitizen->x == pFirefighter->x && pCitizen->y == pFirefighter->y)
+        {
+            pCitizen->burned = true;
+            printf("Burn\n");
+        }
+
+        unlockCitizen(pCitizen);
+    }
+}
+
+void injectPulverisator(Citizen* pFirefighter, float value)
+{
+    float storage;
+    memcpy(&storage, pFirefighter->data, sizeof(float));
+
+    storage = min(storage + value, 10.0f);
+
+    memcpy(pFirefighter->data, &storage, sizeof(float));
+}
+
+float extractPulverisator(Citizen* pFirefighter, float value)
+{
+    float storage;
+    float result;
+    memcpy(&storage, pFirefighter->data, sizeof(float));
+
+    if (storage > value)
+    {
+        result = value;
+        storage -= value;
+    }
+    else
+    {
+        result = storage;
+        storage = 0.0f;
+    }
+    
+    memcpy(pFirefighter->data, &storage, sizeof(float));
+
+    return result;
+}
+
+void decontaminate(Citizen* pFirefighter)
+{
+    if (!pFirefighter->alive)
+        return;
+
+    float remaining = extractPulverisator(pFirefighter, PULVERISATOR_BY_TURN);
+
+    for (int i=0; i < CITIZEN_COUNT && remaining > 0.0f; i++)
+    {
+        if (i == pFirefighter->id)
+            continue;
+
+        Citizen* pCitizen = getCitizen(i);
+
+        if (pCitizen->alive && pCitizen->x == pFirefighter->x && pCitizen->y == pFirefighter->y)
+        {
+            lockCitizen(pCitizen);
+
+            float remove = min(pCitizen->contamination, min(remaining, PULVERISATOR_BY_CITIZEN));
+
+            pCitizen->contamination -= remove;
+            remaining -= remove;
+
+            unlockCitizen(pCitizen);
+        }
+    }
+
+    if (remaining > 0.0f)
+    {
+        const Tile tile = getTile(pFirefighter->x, pFirefighter->y);
+
+        float remove = min(tile.contamination, min(remaining, PULVERISATOR_BY_TILE));
+
+        setTileContamination(tile.contamination - remove);
+        remaining -= remove;
+    }
+
+    injectPulverisator(pFirefighter, remaining);
+}

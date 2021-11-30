@@ -1,6 +1,9 @@
 #include "CitizenManager.h"
+#include "Process.h"
 
-#include "Map.h"
+#include "Citizen.h"
+#include "Doctor.h"
+#include "Firefighter.h"
 
 #include <pthread.h>
 #include <memory.h>
@@ -8,8 +11,6 @@
 #include <time.h>
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <sys/types.h>
@@ -20,51 +21,29 @@ pthread_mutex_t updateMutex;
 pthread_cond_t updateCond;
 pthread_t threads[CITIZEN_COUNT];
 
-pid_t epidemicSimId;
-
 char isRunning = 1;
 clock_t start_clock, end;
 int counter;
-
-enum Action
-{
-    INIT,
-    UPDATE,
-    DESTROY
-};
 
 #define SIM_TO_CITIZEN 0
 #define CITIZEN_TO_SIM 1
 
 int tubes[2];
 
-int openTube(char* name, int flags)
-{
-    int tube = open(name, flags);
-
-    if (tube == -1)
-    {
-        fprintf(stderr, "Failled to open tube: %s\n", name);
-        exit(EXIT_FAILURE);
-    }
-
-    return tube;
-}
-
 void openTubes()
 {
     printf("[CIT] Open tubes\n");
 
-    tubes[SIM_TO_CITIZEN] = openTube("./sim_to_citizen", O_RDONLY);
-    tubes[CITIZEN_TO_SIM] = openTube("./citizen_to_sim", O_WRONLY);
+    tubes[SIM_TO_CITIZEN] = openTube(SIM_TO_CITIZEN_NAME, O_RDONLY, false);
+    tubes[CITIZEN_TO_SIM] = openTube(CITIZEN_TO_SIM_NAME, O_WRONLY, false);
 }
 
 void closeTubes()
 {
     printf("[CIT] Close tubes\n");
 
-    close(tubes[SIM_TO_CITIZEN]);
-    close(tubes[CITIZEN_TO_SIM]);
+    closeTube(SIM_TO_CITIZEN_NAME, tubes[SIM_TO_CITIZEN], false);
+    closeTube(CITIZEN_TO_SIM_NAME, tubes[CITIZEN_TO_SIM], false);
 }
 
 int main()
@@ -75,9 +54,8 @@ int main()
 
     while (isRunning)
     {
-        enum Action action;
+        enum ProcessAction action = readAction(tubes[SIM_TO_CITIZEN]);
         bool result;
-        read(tubes[SIM_TO_CITIZEN], &action, sizeof(enum Action));
 
         switch (action)
         {
@@ -107,7 +85,7 @@ int main()
             break;
         }
 
-        write(tubes[CITIZEN_TO_SIM], &result, sizeof(bool));
+        sendResult(tubes[CITIZEN_TO_SIM], result);
     }
 
     closeTubes();
@@ -124,31 +102,28 @@ void initCitizens()
 
     for (int i = 0; i < CITIZEN_COUNT; i++)
     {
-        int* pCitizenId = (int*) malloc(sizeof(int));
-        *pCitizenId = i;
+        Citizen* pCitizen = getCitizen(i);
 
-        Citizen citizen = getCitizen(i);
-
-        switch (citizen.type)
+        switch (pCitizen->type)
         {
         case ORDINARY_PEOPLE:
-            pthread_create(&threads[i], NULL, ordinaryPeopleHandler, pCitizenId);
+            pthread_create(&threads[i], NULL, ordinaryPeopleHandler, pCitizen);
             break;
 
         case DOCTOR:
-            pthread_create(&threads[i], NULL, doctorHandler, pCitizenId);
+            pthread_create(&threads[i], NULL, doctorHandler, pCitizen);
             break;
 
         case FIREFIGHTER:
-            pthread_create(&threads[i], NULL, firefighterHandler, pCitizenId);
+            pthread_create(&threads[i], NULL, firefighterHandler, pCitizen);
             break;
 
         case JOURNALIST:
-            pthread_create(&threads[i], NULL, journalistHandler, pCitizenId);
+            pthread_create(&threads[i], NULL, journalistHandler, pCitizen);
             break;
         
         default:
-            printf("Error invalid type %d\n", citizen.type);
+            printf("Error invalid type %d\n", pCitizen->type);
             break;
         }
     }
@@ -194,421 +169,119 @@ void waitSignal()
     pthread_mutex_unlock(&updateMutex);
 }
 
-#define CITIZEN_MOVE_PROBABILITY 40
-
-typedef struct 
-{
-    int x;
-    int y;
-} Point;
-
-const Point DIRECTIONS[8] = { { +1, +1 }, { +1, +0 }, { +1, -1 }, { +0, +1 }, { +0, -1 }, { -1, +1 }, { -1, +0 }, { -1, -1 } };
-
-void genDirList(Point dest[])
-{
-    memset(dest, 0, sizeof(Point) * 8);
-
-    for (int i = 0; i < 8; i++)
-    {
-        int random = rand() % (8 - i);
-        int destIndex;
-
-        for (destIndex = 0; random != 0 || dest[destIndex].x != 0 || dest[destIndex].y != 0; destIndex++)
-        {
-            if (dest[destIndex].x == 0 && dest[destIndex].y == 0)
-            {
-                random--;
-            }
-        }
-
-        dest[destIndex] = DIRECTIONS[i];
-    }
-}
-
-int tryRandomMove(int citizenId)
-{
-    Point directions[8];
-    genDirList(directions);
-
-    const Citizen citizen = getCitizen(citizenId);
-
-    for (int i=0; i < 8; i++)
-    {
-        if (moveCitizen(citizenId, citizen.x + directions[i].x, citizen.y + directions[i].y))
-            return 1;
-    }
-
-    return 0;
-}
-
-char updateCitizenPosition(int citizenId)
-{
-    float contaminationRate;
-    Citizen citizen;
-    Tile tile;
-
-    citizen = getCitizen(citizenId);
-
-    if (!citizen.alive)
-        return 0;
-
-    char hasMoved;
-
-    if (rand() % 100 < CITIZEN_MOVE_PROBABILITY && tryRandomMove(citizenId))
-    {
-        contaminationRate = 0.02f;
-
-        citizen = getCitizen(citizenId);
-        tile = getTile(citizen.x, citizen.y);
-
-        switch (tile.type)
-        {
-        case HOSPITAL:
-            setTileContamination(citizen.x, citizen.y, tile.contamination + (citizen.contamination * 0.01f / 4.0f));
-            break;
-
-        case FIRE_STATION:
-            break;
-        
-        default:
-            setTileContamination(citizen.x, citizen.y, tile.contamination + (citizen.contamination * 0.01f));
-            break;
-        }
-
-        hasMoved = 1;
-    }
-    else
-    {
-        contaminationRate = 0.05f;
-
-        citizen = getCitizen(citizenId);
-        tile = getTile(citizen.x, citizen.y);
-
-        hasMoved = 0;
-    }
-
-    if (citizen.type == FIREFIGHTER)
-    {
-        contaminationRate /= 10.0f;
-    }
-
-    setCitizenContamination(citizenId, citizen.contamination + (tile.contamination * contaminationRate));
-
-    return hasMoved;
-}
-
-#define BASE_RISK_OF_DYING 0.05f
-#define HOSPITAL_DIVISOR 4.0f
-#define DOCTOR_DIVISOR 2.0f
-
-float getRiskOfDying(Citizen citizen)
-{
-    const Tile tile = getTile(citizen.x, citizen.y);
-
-    if (tile.type == HOSPITAL)
-    {
-        return BASE_RISK_OF_DYING / HOSPITAL_DIVISOR;
-    }
-    
-    for (int i = 0; i < DOCTOR_COUNT; i++)
-    {
-        const Citizen doctor = getCitizen(i);
-
-        if (doctor.alive && doctor.x == citizen.x && doctor.y == citizen.y)
-        {
-            return BASE_RISK_OF_DYING / DOCTOR_DIVISOR;
-        }
-    }
-    
-    return BASE_RISK_OF_DYING;
-}
-
-void updateCitizenSickness(int citizenId)
-{
-    Citizen citizen = getCitizen(citizenId);
-    const Tile tile = getTile(citizen.x, citizen.y);
-
-    if (citizen.alive)
-    {
-        if (tile.type == FIRE_STATION)
-        {
-            citizen.contamination = citizen.contamination > 0.20f ? citizen.contamination - 0.20f : 0.0f;
-            setCitizenContamination(citizenId, citizen.contamination);
-        }
-
-        if (!citizen.sick && ((float) rand() / RAND_MAX) < citizen.contamination)
-        {
-            setCitizenDayOfSickness(citizenId, 0);
-            setCitizenSick(citizenId, 1);
-        }
-
-        if (citizen.sick)
-        {
-            if (citizen.dayOfSickness > 5 && ((float)rand() / RAND_MAX) < getRiskOfDying(citizen))
-            {
-                setCitizenAlive(citizenId, 0);
-            }
-
-            setCitizenDayOfSickness(citizenId, citizen.dayOfSickness+1);
-        }
-    }
-    
-    if (!citizen.burned && citizen.sick && ((float)rand() / RAND_MAX) < 0.10f)
-    {
-        for (int i = 0; i < CITIZEN_COUNT; i++)
-        {
-            const Citizen other = getCitizen(i);
-
-            if (other.alive && other.x == citizen.x && other.y == citizen.y)
-            {
-                if (other.type == FIREFIGHTER && ((float)rand() / RAND_MAX) < 0.30f)
-                {
-                    setCitizenContamination(i, citizen.contamination + 0.01f);
-                }
-                else
-                {
-                    setCitizenContamination(i, citizen.contamination + 0.01f);
-                }
-            }
-        }
-    }
-
-    if (!citizen.burned && citizen.sick && tile.type == WASTELAND && ((float)rand() / RAND_MAX) < 0.01f)
-    {
-        for (int i = 0; i < CITIZEN_COUNT; i++)
-        {
-            const Citizen other = getCitizen(i);
-
-            if (other.alive && other.x != citizen.x && other.y != citizen.y)
-            {
-                if (abs(other.x - citizen.x) <= 1 && abs(other.y - citizen.y) <= 1)
-                {
-                    const Tile otherTile = getTile(other.x, other.y);
-
-                    if (otherTile.type == WASTELAND)
-                    {
-                        if (other.type == FIREFIGHTER && ((float)rand() / RAND_MAX) < 0.30f)
-                        {
-                            setCitizenContamination(i, citizen.contamination + 0.01f);
-                        }
-                        else
-                        {
-                            setCitizenContamination(i, citizen.contamination + 0.01f);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 void *ordinaryPeopleHandler(void* pArg)
 {
-    int* pCitizenId = pArg;
+    Citizen* pCitizen = pArg;
+    bool hasMoved;
+    float contamination;
+    Tile tile;
 
     while (isRunning)
     {
         waitSignal();
 
-        updateCitizenPosition(*pCitizenId);
-        updateCitizenSickness(*pCitizenId);
-    }
+        hasMoved = updatePosition(pCitizen);
+        contamination = pCitizen->contamination;
+        tile = getTile(pCitizen->x, pCitizen->y);
 
-    free(pCitizenId);
+        exchangeContaminationWithTile(pCitizen, contamination, tile, hasMoved);
+
+        propagateContaminationToCitizens(pCitizen);
+
+        updateSickness(pCitizen);
+    }
 
     return NULL;
-}
-
-char findPatient(int* pPatient, int x, int y)
-{
-    float contamination = 0.0f;
-    char found = 0;
-
-    for (int i=0; i < CITIZEN_COUNT; i++)
-    {
-        const Citizen citizen = getCitizen(i);
-
-        if (citizen.sick && citizen.x == x && citizen.y == y && contamination < citizen.contamination)
-        {
-            *pPatient = i;
-            found = 1;
-        }
-    }
-    return found;
 }
 
 void *doctorHandler(void* pArg)
 {
-    int* pDoctorId = pArg;
+    Citizen* pDoctor = pArg;
+    bool hasMoved;
+    float contamination;
+    Tile tile;
 
     while (isRunning)
     {
         waitSignal();
 
-        updateCitizenPosition(*pDoctorId);
-        updateCitizenSickness(*pDoctorId);
+        hasMoved = updatePosition(pDoctor);
+        contamination = pDoctor->contamination;
+        tile = getTile(pDoctor->x, pDoctor->y);
 
-        Citizen doctor = getCitizen(*pDoctorId);
-        Tile tile = getTile(doctor.x, doctor.y);
-        int patient;
+        exchangeContaminationWithTile(pDoctor, contamination, tile, hasMoved);
 
-        if (tile.type == HOSPITAL)
-        {
-            setCitizenData(*pDoctorId, 10);
-            doctor.data = 10;
-        }
+        propagateContaminationToCitizens(pDoctor);
 
-        if (doctor.sick)
-        {
-            if (doctor.dayOfSickness < 10)
-            {
-                if (tile.type == HOSPITAL)
-                {
-                    setCitizenSick(*pDoctorId, 0);
-                }
-                else if (doctor.data > 0)
-                {
-                    setCitizenData(*pDoctorId, doctor.data-1);
-                    setCitizenSick(*pDoctorId, 0);
-                }
-            }
-        }
-        else if (findPatient(&patient, doctor.x, doctor.y))
-        {
-            if (tile.type == HOSPITAL)
-            {
-                setCitizenSick(patient, 0);
-            }
-            else if (doctor.data > 0)
-            {
-                setCitizenData(*pDoctorId, doctor.data-1);
-                setCitizenSick(patient, 0);
-            }
-        }
+        updateSickness(pDoctor);
+
+        updateDoctor(pDoctor, tile);
     }
-
-    free(pDoctorId);
 
     return NULL;
 }
 
-void burnDeadbody(int firefighterId)
-{
-    const Citizen firefighter = getCitizen(firefighterId);
-
-    for (int i=0; i < CITIZEN_COUNT; i++)
-    {
-        const Citizen citizen = getCitizen(i);
-
-        if (!citizen.alive && !citizen.burned && citizen.x == firefighter.x && citizen.y == firefighter.y)
-        {
-            setCitizenBurned(i, 1);
-            printf("Burn\n");
-        }
-    }
-}
-
-void decontaminate(int firefighterId)
-{
-    const Citizen firefighter = getCitizen(firefighterId);
-
-    if (!firefighter.alive)
-        return;
-
-    // TODO fix float int problem
-    int remainingPulverisator = firefighter.data < 100 ? firefighter.data : 100;
-    const int a = remainingPulverisator;
-
-    for (int i=0; i < CITIZEN_COUNT; i++)
-    {
-        if (i == firefighterId)
-            continue;
-
-        const Citizen citizen = getCitizen(i);
-
-        if (citizen.alive && citizen.x == firefighter.x && citizen.y == firefighter.y)
-        {
-            int canRemove = remainingPulverisator > 20 ? 20 : remainingPulverisator;
-
-            if (canRemove > citizen.contamination * 100.0f)
-            {
-                remainingPulverisator -= citizen.contamination * 100.0f;
-                setCitizenContamination(i, 0.0f);
-            }
-            else
-            {
-                remainingPulverisator -= canRemove;
-                setCitizenContamination(i, citizen.contamination - (canRemove / 100.0f));
-            }
-        }
-    }
-
-    if (remainingPulverisator > 0)
-    {
-        const Tile tile = getTile(firefighter.x, firefighter.y);
-
-        int canRemove = remainingPulverisator > 20 ? 20 : remainingPulverisator;
-
-        if (canRemove > tile.contamination * 100.0f)
-        {
-            remainingPulverisator -= tile.contamination * 100.0f;
-            setTileContamination(firefighter.x, firefighter.y, 0.0f);
-        }
-        else
-        {
-            remainingPulverisator -= canRemove;
-            setTileContamination(firefighter.x, firefighter.y, tile.contamination - (canRemove / 100.0f));
-        }
-    }
-
-    setCitizenData(firefighterId, firefighter.data - (a - remainingPulverisator));
-}
-
 void *firefighterHandler(void* pArg)
 {
-    int* pCitizenId = pArg;
+    Citizen* pFirefighter = pArg;
+    bool hasMoved;
+    float contamination;
+    Tile tile;
 
     while (isRunning)
     {
         waitSignal();
 
-        char hasMoved = updateCitizenPosition(*pCitizenId);
-        updateCitizenSickness(*pCitizenId);
+        hasMoved = updatePosition(pFirefighter);
+        contamination = pFirefighter->contamination;
+        tile = getTile(pFirefighter->x, pFirefighter->y);
+
+        exchangeContaminationWithTile(pFirefighter, contamination, tile, hasMoved);
+
+        propagateContaminationToCitizens(pFirefighter);
+
+        updateSickness(pFirefighter);
 
         if (hasMoved)
         {
-            burnDeadbody(*pCitizenId);
+            burnDeadbody(pFirefighter);
 
-            const Citizen firefighter = getCitizen(*pCitizenId);
-            const Tile tile = getTile(firefighter.x, firefighter.y);
+            const Tile tile = getTile(pFirefighter->x, pFirefighter->y);
 
+            // TODO move to epidemic sim
             if (tile.type == FIRE_STATION)
             {
-                setCitizenData(*pCitizenId, 1000);
+                injectPulverisator(pFirefighter, 10.0f);
             }
         }
 
-        decontaminate(*pCitizenId);
+        decontaminate(pFirefighter);
     }
-
-    free(pCitizenId);
 
     return NULL;
 }
 
 void *journalistHandler(void* pArg)
 {
-    int* pCitizenId = pArg;
+    Citizen* pJournalist = pArg;
+    bool hasMoved;
+    float contamination;
+    Tile tile;
 
     while (isRunning)
     {
         waitSignal();
 
-        updateCitizenPosition(*pCitizenId);
-        updateCitizenSickness(*pCitizenId);
-    }
+        hasMoved = updatePosition(pJournalist);
+        contamination = pJournalist->contamination;
+        tile = getTile(pJournalist->x, pJournalist->y);
 
-    free(pCitizenId);
+        exchangeContaminationWithTile(pJournalist, contamination, tile, hasMoved);
+
+        propagateContaminationToCitizens(pJournalist);
+
+        updateSickness(pJournalist);
+    }
 
     return NULL;
 }

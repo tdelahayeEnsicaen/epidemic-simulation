@@ -2,6 +2,7 @@
 #define MAP_H
 
 #include <stdio.h>
+#include <stdbool.h>
 
 // MAP SIZE
 
@@ -29,6 +30,13 @@
 #define FIREFIGHTER 2
 #define JOURNALIST 3
 
+// CITIZEN OFFSET
+
+#define DOCTOR_OFFSET 0
+#define FIREFIGTHER_OFFSET (DOCTOR_OFFSET + DOCTOR_COUNT)
+#define JOURNALIST_OFFSET (FIREFIGTHER_OFFSET + FIREFIGHTER_COUNT)
+#define ORDINARY_PEOPLE_OFFSET (JOURNALIST_OFFSET + JOURNALIST_COUNT)
+
 // CITIZEN COUNT
 
 #define ORDINARY_PEOPLE_COUNT 25
@@ -45,14 +53,15 @@ typedef struct
 
 typedef struct 
 {
+    char id;
     char type;
     char x, y;
-    char alive;
-    char sick;
-    char burned;
+    bool alive;
+    bool sick;
+    bool burned;
     char dayOfSickness;
     float contamination;
-    int data;
+    char data[4];
 } Citizen;
 
 void createMap();
@@ -76,49 +85,44 @@ char getTileType(int x, int y);
 
 Tile getTile(int x, int y);
 
-void setTileContamination(int x, int y, float contamination);
+void increaseTileContamination(int x, int y, float increment);
 
 // --------- CITIZENS ---------
 
 char* getCitizenTypeName(char type);
 
-Citizen getCitizen(int index);
+void lockCitizen(const Citizen* pCitizen);
+
+void unlockCitizen(const Citizen* pCitizen);
+
+Citizen* getCitizen(int id);
 
 /**
  * @brief Return the number of citizen at the given position
  * 
  * @param x 
  * @param y 
+ * 
  * @return number of citizen
  */
 int getCitizenCount(int x, int y);
 
-int canAccess(Citizen citizen, int x, int y);
+bool canAccess(const Citizen* pCitizen, int x, int y);
 
 /**
  * @brief Try to move the given citizen to the destination tile.
- * This method fails if the destination tile is full or if the destination tile
- * is a fire station and no firefighter is present and the citizen isn't a 
- * firefighter.
  * 
- * @param citizenId
+ * A citizen cannot enter destination tile if the tile is full.
+ * 
+ * A citizen can enter a fire station only if there is a firefighter or if he 
+ * is one.
+ * 
+ * @param pCitizen
  * @param xDest 
  * @param yDest 
  * @return 1 if the method success 0 else
  */
-int moveCitizen(int citizenId, int xDest, int yDest);
-
-void setCitizenContamination(int citizenId, float contamination);
-
-void setCitizenSick(int citizenId, char sick);
-
-void setCitizenBurned(int citizenId, char burned);
-
-void setCitizenDayOfSickness(int citizenId, char dayCount);
-
-void setCitizenAlive(int citizenId, char alive);
-
-void setCitizenData(int citizenId, int data);
+bool moveCitizen(Citizen* pCitizen, int xDest, int yDest);
 
 // -------- SAVE ---------
 
