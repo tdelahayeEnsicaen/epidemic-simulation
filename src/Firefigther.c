@@ -1,4 +1,4 @@
-#include "Firefighter.h"
+#include "Firefigther.h"
 
 #include <memory.h>
 
@@ -85,7 +85,7 @@ void decontaminate(Citizen* pFirefighter)
 
         float remove = min(tile.contamination, min(remaining, PULVERISATOR_BY_TILE));
 
-        setTileContamination(tile.contamination - remove);
+        increaseTileContamination(pFirefighter->x, pFirefighter->y, -remove);
         remaining -= remove;
     }
 

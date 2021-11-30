@@ -19,25 +19,12 @@ int period;
 
 int tubes[2];
 
-int openTube(const char* name, int flags)
-{
-    int tube = open(name, flags);
-
-    if (tube == -1)
-    {
-        fprintf(stderr, "Failed to open tube: %s\n", name);
-        exit(EXIT_FAILURE);
-    }
-
-    return tube;
-}
-
 void openTubes()
 {
     printf("[TIM] Open tubes\n");
 
-    tubes[SIM_TO_TIMER] = openTube("./sim_to_timer", O_RDONLY);
-    tubes[TIMER_TO_SIM] = openTube("./timer_to_sim", O_WRONLY);
+    tubes[SIM_TO_TIMER] = openTube(SIM_TO_TIMER_NAME, O_RDONLY, false);
+    tubes[TIMER_TO_SIM] = openTube(TIMER_TO_SIM_NAME, O_WRONLY, false);
 }
 
 void closeTubes()

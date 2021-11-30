@@ -2,6 +2,7 @@
 #include "Process.h"
 
 #include "Map.h"
+#include "Utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -145,7 +146,7 @@ void propagateContamination(Tile src, int xDest, int yDest)
 
     const float diff = src.contamination - dest.contamination;
 
-    setTileContamination(xDest, yDest, dest.contamination + (diff * (0.01f + 0.19f * (float)rand() / RAND_MAX) ));
+    increaseTileContamination(xDest, yDest, diff * (0.01f + 0.19f * genFloat()));
 }
 
 void destroySimulation()

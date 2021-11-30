@@ -30,7 +30,7 @@ void exchangeContaminationWithTile(Citizen* pCitizen, float contamination, Tile 
 {
     if (hasMoved)
     {
-        increaseTileContamination(pCitizen->x, pCitizen->y, pCitizen->contamination * CONTAMINATION_SENT);
+        increaseTileContamination(pCitizen->x, pCitizen->y, contamination * CONTAMINATION_SENT);
     }
 
     float contaminationRate;
@@ -117,14 +117,13 @@ void propagateContaminationToCitizens(const Citizen* pSource)
 
     for (int i = 0; i < CITIZEN_COUNT; i++)
     {
-        const Citizen* pTarget = getCitizen(i);
+        Citizen* pTarget = getCitizen(i);
 
         if (canContaminateTarget(pSource, pTarget))
         {
             lockCitizen(pTarget);
-
+            pTarget->contamination += CONTAMINATION_INCREMENT;
             unlockCitizen(pTarget);
-            setCitizenContamination(i, pSource->contamination + CONTAMINATION_INCREMENT);
         }
     }
 }
@@ -160,8 +159,6 @@ int computeRiskOfDying(const Citizen* pCitizen)
 
 void updateSickness(Citizen* pCitizen)
 {
-    const Tile tile = getTile(pCitizen->x, pCitizen->y);
-
     if (pCitizen->alive)
     {
         if (!pCitizen->sick && genFloat() < pCitizen->contamination)
@@ -172,7 +169,7 @@ void updateSickness(Citizen* pCitizen)
 
         if (pCitizen->sick)
         {
-            if (pCitizen->dayOfSickness > 5 && genFloat() < getRiskOfDying(pCitizen))
+            if (pCitizen->dayOfSickness > 5 && genFloat() < computeRiskOfDying(pCitizen))
             {
                 pCitizen->alive = false;
             }

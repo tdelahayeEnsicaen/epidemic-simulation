@@ -3,7 +3,7 @@
 
 #include "Citizen.h"
 #include "Doctor.h"
-#include "Firefighter.h"
+#include "Firefigther.h"
 
 #include <pthread.h>
 #include <memory.h>
@@ -17,11 +17,25 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+enum CitizenUpdateStep
+{
+    POSITION,
+    TILE_CONTAMINATION,
+    CITIZEN_CONTAMINATION,
+    SICKNESS,
+    SPECIAL_ACTION,
+    WAIT
+};
+
 pthread_mutex_t updateMutex;
 pthread_cond_t updateCond;
 pthread_t threads[CITIZEN_COUNT];
 
+pthread_mutex_t updateStepMutex;
+pthread_cond_t updateStepCond;
+
 char isRunning = 1;
+enum CitizenUpdateStep updateStep = WAIT;
 clock_t start_clock, end;
 int counter;
 
@@ -98,6 +112,9 @@ void initCitizens()
     pthread_mutex_init(&updateMutex, NULL);
     pthread_cond_init(&updateCond, NULL);
 
+    pthread_mutex_init(&updateStepMutex, NULL);
+    pthread_cond_init(&updateStepCond, NULL);
+
     loadMap();
 
     for (int i = 0; i < CITIZEN_COUNT; i++)
@@ -133,6 +150,9 @@ void destroyCitizens()
 {
     //pthread_cond_destroy(&updateCond);
     pthread_mutex_destroy(&updateMutex);
+
+    //pthread_cond_destroy(&updateStepCond);
+    pthread_mutex_destroy(&updateStepMutex);
 }
 
 void updateCitizens()
@@ -169,6 +189,30 @@ void waitSignal()
     pthread_mutex_unlock(&updateMutex);
 }
 
+int c = 0;
+
+void nextStep()
+{
+    pthread_mutex_lock(&updateStepMutex);
+
+    c++;
+
+    if (c == CITIZEN_COUNT)
+    {
+        updateStep = (updateStep + 1) % 6;
+        printf("[CIT] NEXT STEP: %d\n", updateStep);
+
+        pthread_cond_broadcast(&updateStepCond);
+        c = 0;
+    }
+    else
+    {
+        pthread_cond_wait(&updateStepCond, &updateStepMutex);
+    }
+
+    pthread_mutex_unlock(&updateStepMutex);
+}
+
 void *ordinaryPeopleHandler(void* pArg)
 {
     Citizen* pCitizen = pArg;
@@ -178,17 +222,40 @@ void *ordinaryPeopleHandler(void* pArg)
 
     while (isRunning)
     {
-        waitSignal();
+        switch (updateStep)
+        {
+        case POSITION:
+            hasMoved = updatePosition(pCitizen);
+            contamination = pCitizen->contamination;
+            tile = getTile(pCitizen->x, pCitizen->y);
+            break;
 
-        hasMoved = updatePosition(pCitizen);
-        contamination = pCitizen->contamination;
-        tile = getTile(pCitizen->x, pCitizen->y);
+        case TILE_CONTAMINATION:
+            exchangeContaminationWithTile(pCitizen, contamination, tile, hasMoved);
+            break;
 
-        exchangeContaminationWithTile(pCitizen, contamination, tile, hasMoved);
+        case CITIZEN_CONTAMINATION:
+            propagateContaminationToCitizens(pCitizen);
+            break;
 
-        propagateContaminationToCitizens(pCitizen);
+        case SICKNESS:
+            updateSickness(pCitizen);
+            break;
 
-        updateSickness(pCitizen);
+        case SPECIAL_ACTION:
+
+            break;
+
+        case WAIT:
+            waitSignal();
+            break;
+        
+        default:
+            printf("Invalid Citizen update step: %d\n", updateStep);
+            break;
+        }
+
+        nextStep();
     }
 
     return NULL;
@@ -203,19 +270,40 @@ void *doctorHandler(void* pArg)
 
     while (isRunning)
     {
-        waitSignal();
+        switch (updateStep)
+        {
+        case POSITION:
+            hasMoved = updatePosition(pDoctor);
+            contamination = pDoctor->contamination;
+            tile = getTile(pDoctor->x, pDoctor->y);
+            break;
 
-        hasMoved = updatePosition(pDoctor);
-        contamination = pDoctor->contamination;
-        tile = getTile(pDoctor->x, pDoctor->y);
+        case TILE_CONTAMINATION:
+            exchangeContaminationWithTile(pDoctor, contamination, tile, hasMoved);
+            break;
 
-        exchangeContaminationWithTile(pDoctor, contamination, tile, hasMoved);
+        case CITIZEN_CONTAMINATION:
+            propagateContaminationToCitizens(pDoctor);
+            break;
 
-        propagateContaminationToCitizens(pDoctor);
+        case SICKNESS:
+            updateSickness(pDoctor);
+            break;
 
-        updateSickness(pDoctor);
+        case SPECIAL_ACTION:
+            updateDoctor(pDoctor, tile);
+            break;
 
-        updateDoctor(pDoctor, tile);
+        case WAIT:
+            waitSignal();
+            break;
+        
+        default:
+            printf("Invalid Citizen update step: %d\n", updateStep);
+            break;
+        }
+
+        nextStep();
     }
 
     return NULL;
@@ -230,32 +318,53 @@ void *firefighterHandler(void* pArg)
 
     while (isRunning)
     {
-        waitSignal();
-
-        hasMoved = updatePosition(pFirefighter);
-        contamination = pFirefighter->contamination;
-        tile = getTile(pFirefighter->x, pFirefighter->y);
-
-        exchangeContaminationWithTile(pFirefighter, contamination, tile, hasMoved);
-
-        propagateContaminationToCitizens(pFirefighter);
-
-        updateSickness(pFirefighter);
-
-        if (hasMoved)
+        switch (updateStep)
         {
-            burnDeadbody(pFirefighter);
+        case POSITION:
+            hasMoved = updatePosition(pFirefighter);
+            contamination = pFirefighter->contamination;
+            tile = getTile(pFirefighter->x, pFirefighter->y);
+            break;
 
-            const Tile tile = getTile(pFirefighter->x, pFirefighter->y);
+        case TILE_CONTAMINATION:
+            exchangeContaminationWithTile(pFirefighter, contamination, tile, hasMoved);
+            break;
 
-            // TODO move to epidemic sim
-            if (tile.type == FIRE_STATION)
+        case CITIZEN_CONTAMINATION:
+            propagateContaminationToCitizens(pFirefighter);
+            break;
+
+        case SICKNESS:
+            updateSickness(pFirefighter);
+            break;
+
+        case SPECIAL_ACTION:
+            if (hasMoved)
             {
-                injectPulverisator(pFirefighter, 10.0f);
+                burnDeadBody(pFirefighter);
+
+                const Tile tile = getTile(pFirefighter->x, pFirefighter->y);
+
+                // TODO move to epidemic sim
+                if (tile.type == FIRE_STATION)
+                {
+                    injectPulverisator(pFirefighter, 10.0f);
+                }
             }
+
+            decontaminate(pFirefighter);
+            break;
+
+        case WAIT:
+            waitSignal();
+            break;
+        
+        default:
+            printf("Invalid Citizen update step: %d\n", updateStep);
+            break;
         }
 
-        decontaminate(pFirefighter);
+        nextStep();
     }
 
     return NULL;
@@ -270,17 +379,40 @@ void *journalistHandler(void* pArg)
 
     while (isRunning)
     {
-        waitSignal();
+        switch (updateStep)
+        {
+        case POSITION:
+            hasMoved = updatePosition(pJournalist);
+            contamination = pJournalist->contamination;
+            tile = getTile(pJournalist->x, pJournalist->y);
+            break;
 
-        hasMoved = updatePosition(pJournalist);
-        contamination = pJournalist->contamination;
-        tile = getTile(pJournalist->x, pJournalist->y);
+        case TILE_CONTAMINATION:
+            exchangeContaminationWithTile(pJournalist, contamination, tile, hasMoved);
+            break;
 
-        exchangeContaminationWithTile(pJournalist, contamination, tile, hasMoved);
+        case CITIZEN_CONTAMINATION:
+            propagateContaminationToCitizens(pJournalist);
+            break;
 
-        propagateContaminationToCitizens(pJournalist);
+        case SICKNESS:
+            updateSickness(pJournalist);
+            break;
 
-        updateSickness(pJournalist);
+        case SPECIAL_ACTION:
+
+            break;
+
+        case WAIT:
+            waitSignal();
+            break;
+        
+        default:
+            printf("Invalid Citizen update step: %d\n", updateStep);
+            break;
+        }
+
+        nextStep();
     }
 
     return NULL;

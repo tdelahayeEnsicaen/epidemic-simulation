@@ -155,7 +155,7 @@ void createCitizen(int id, char type, int x, int y, char data[4])
 
     memcpy(pMap->citizens[id].data, data, 4);
 
-    moveCitizen(id, x, y);
+    moveCitizen(&pMap->citizens[id], x, y);
 }
 
 void genCitizens()
@@ -176,8 +176,6 @@ void genCitizens()
         const int y = rand() % MAP_HEIGHT;
 
         createCitizen(i, DOCTOR, x, y, data); // TODO if in hospital set to 10
-
-        moveCitizen(i, x, y);
     }
 
     // FIRE FIGTHERS
@@ -406,7 +404,7 @@ void saveMap(FILE* pFile)
             pCitizen->sick,
             pCitizen->dayOfSickness,
             pCitizen->contamination,
-            pCitizen->data);
+            pCitizen->data[0]);
 
         unlockCitizen(pCitizen);
     }
