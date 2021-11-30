@@ -21,19 +21,24 @@ enum ProcessAction
 };
 
 /**
+ * @brief Try to create a tube with the given name if the operation fails then 
+ * the process will automaticaly exit.
+ * 
+ * @param name 
+ * @param flags 
+ */
+void createTube(const char* name, int flags);
+
+/**
  * @brief Try to open a tube with the given name if the operation fails then 
  * the process will automaticaly exit.
  * 
- * If create is set to true then previous tube with this name will be destroyed 
- * and a new one will be created.
- * 
  * @param name Tube name
  * @param flags Tube flags
- * @param create Define if the tube should be created
  * 
  * @return tube identifier
  */
-int openTube(const char* name, int flags, bool create);
+int openTube(const char* name, int flags);
 
 /**
  * @brief Try to open all required tubes to make this process communicate with

@@ -166,7 +166,7 @@ void genCitizens()
 
     // DOCTORS
 
-    char data[4] = { 0, 0, 0, 5 };
+    char data[4] = { 5, 0, 0, 0 };
 
     createCitizen(0, DOCTOR, 3, 3, data);
 
@@ -396,7 +396,24 @@ void saveMap(FILE* pFile)
 
         lockCitizen(pCitizen);
 
-        fprintf(pFile, "%s X=%d Y=%d Alive=%d Sick=%d DOS=%d Cont=%.2f Data=%d\n", 
+        if (pCitizen->type == FIREFIGHTER)
+        {
+            float data;
+            memcpy(&data, pCitizen->data, sizeof(float));
+
+            fprintf(pFile, "%s X=%d Y=%d Alive=%d Sick=%d DOS=%d Cont=%.2f Data=%f\n", 
+            getCitizenTypeName(pCitizen->type),
+            pCitizen->x,
+            pCitizen->y,
+            pCitizen->alive,
+            pCitizen->sick,
+            pCitizen->dayOfSickness,
+            pCitizen->contamination,
+            data);
+        }
+        else
+        {
+            fprintf(pFile, "%s X=%d Y=%d Alive=%d Sick=%d DOS=%d Cont=%.2f Data=%d\n", 
             getCitizenTypeName(pCitizen->type),
             pCitizen->x,
             pCitizen->y,
@@ -405,6 +422,7 @@ void saveMap(FILE* pFile)
             pCitizen->dayOfSickness,
             pCitizen->contamination,
             pCitizen->data[0]);
+        }
 
         unlockCitizen(pCitizen);
     }

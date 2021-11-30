@@ -6,24 +6,22 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-int openTube(const char* name, int flags, bool create)
+void createTube(const char* name, int flags)
 {
-    int tube;
+    unlink(name);
 
-    if (create)
+    int result = mkfifo(name, 0644);
+
+    if (result == -1)
     {
-        unlink(name);
-
-        tube = mkfifo(name, 0644);
-
-        if (tube == -1)
-        {
-            fprintf(stderr, "Failed to create tube: %s\n", name);
-            exit(EXIT_FAILURE);
-        }
+        fprintf(stderr, "Failed to create tube: %s\n", name);
+        exit(EXIT_FAILURE);
     }
+}
 
-    tube = open(name, flags);
+int openTube(const char* name, int flags)
+{
+    int tube = open(name, flags);
 
     if (tube == -1)
     {

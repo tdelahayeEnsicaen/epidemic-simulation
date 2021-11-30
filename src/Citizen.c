@@ -2,6 +2,8 @@
 
 #include "Utils.h"
 
+#include <stdlib.h>
+
 // ----------------------- MOVEMENT -----------------------
 
 bool updatePosition(Citizen* pCitizen)

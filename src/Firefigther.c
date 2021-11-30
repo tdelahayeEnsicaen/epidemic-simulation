@@ -1,5 +1,7 @@
 #include "Firefigther.h"
 
+#include "Utils.h"
+
 #include <memory.h>
 
 void burnDeadBody(const Citizen* pFirefighter)
@@ -13,7 +15,6 @@ void burnDeadBody(const Citizen* pFirefighter)
         if (!pCitizen->alive && !pCitizen->burned && pCitizen->x == pFirefighter->x && pCitizen->y == pFirefighter->y)
         {
             pCitizen->burned = true;
-            printf("Burn\n");
         }
 
         unlockCitizen(pCitizen);

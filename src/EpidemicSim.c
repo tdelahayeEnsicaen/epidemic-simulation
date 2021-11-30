@@ -21,11 +21,17 @@ void openTubes()
 {
     printf("[EPI] Open tubes\n");
 
-    tubes[SIM_TO_CITIZEN] = openTube(SIM_TO_CITIZEN_NAME, O_WRONLY, true);
-    tubes[CITIZEN_TO_SIM] = openTube(CITIZEN_TO_SIM_NAME, O_RDONLY, true);
+    createTube(SIM_TO_CITIZEN_NAME, O_WRONLY);
+    createTube(CITIZEN_TO_SIM_NAME, O_RDONLY);
 
-    tubes[SIM_TO_TIMER] = openTube(SIM_TO_TIMER_NAME, O_WRONLY, true);
-    tubes[TIMER_TO_SIM] = openTube(TIMER_TO_SIM_NAME, O_RDONLY, true);
+    createTube(SIM_TO_TIMER_NAME, O_WRONLY);
+    createTube(TIMER_TO_SIM_NAME, O_RDONLY);
+
+    tubes[SIM_TO_CITIZEN] = openTube(SIM_TO_CITIZEN_NAME, O_WRONLY);
+    tubes[CITIZEN_TO_SIM] = openTube(CITIZEN_TO_SIM_NAME, O_RDONLY);
+
+    tubes[SIM_TO_TIMER] = openTube(SIM_TO_TIMER_NAME, O_WRONLY);
+    tubes[TIMER_TO_SIM] = openTube(TIMER_TO_SIM_NAME, O_RDONLY);
 }
 
 void closeTubes()

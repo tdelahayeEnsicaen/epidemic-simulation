@@ -23,8 +23,8 @@ void openTubes()
 {
     printf("[TIM] Open tubes\n");
 
-    tubes[SIM_TO_TIMER] = openTube(SIM_TO_TIMER_NAME, O_RDONLY, false);
-    tubes[TIMER_TO_SIM] = openTube(TIMER_TO_SIM_NAME, O_WRONLY, false);
+    tubes[SIM_TO_TIMER] = openTube(SIM_TO_TIMER_NAME, O_RDONLY);
+    tubes[TIMER_TO_SIM] = openTube(TIMER_TO_SIM_NAME, O_WRONLY);
 }
 
 void closeTubes()

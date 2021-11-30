@@ -48,8 +48,8 @@ void openTubes()
 {
     printf("[CIT] Open tubes\n");
 
-    tubes[SIM_TO_CITIZEN] = openTube(SIM_TO_CITIZEN_NAME, O_RDONLY, false);
-    tubes[CITIZEN_TO_SIM] = openTube(CITIZEN_TO_SIM_NAME, O_WRONLY, false);
+    tubes[SIM_TO_CITIZEN] = openTube(SIM_TO_CITIZEN_NAME, O_RDONLY);
+    tubes[CITIZEN_TO_SIM] = openTube(CITIZEN_TO_SIM_NAME, O_WRONLY);
 }
 
 void closeTubes()
@@ -200,7 +200,6 @@ void nextStep()
     if (c == CITIZEN_COUNT)
     {
         updateStep = (updateStep + 1) % 6;
-        printf("[CIT] NEXT STEP: %d\n", updateStep);
 
         pthread_cond_broadcast(&updateStepCond);
         c = 0;
