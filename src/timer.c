@@ -7,6 +7,7 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
 
 #define ARG_COUNT 2
 #define USAGE_FORMAT "%s [Period(in seconds)]\n"
@@ -37,7 +38,7 @@ void closeTubes()
 
 void tick(int sig)
 {
-    printf("[TIM] Update %d/%d\n", turnCounter, TURN_LIMIT);
+    printf("[TIM] Update %d/%d\n", turnCounter+1, TURN_LIMIT);
     sig = sig;
 
     enum ProcessAction action = UPDATE;
@@ -81,6 +82,8 @@ int main(int argc, char const *argv[])
     sscanf(argv[1], "%d", &period);
 
     struct sigaction alarm_action;
+
+    memset(&alarm_action, 0, sizeof(struct sigaction));
 
     alarm_action.sa_handler = &tick;
 

@@ -11,8 +11,8 @@ obj/%.o: src/%.c include/%.h include/Utils.h
 citizen_manager: obj/CitizenManager.o obj/Map.o obj/Citizen.o obj/Doctor.o obj/Firefigther.o obj/Process.o obj/Utils.o
 	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -lrt -lpthread -o $@ 
 
-epidemic_sim: obj/Map.o obj/EpidemicSim.o obj/Process.o obj/Utils.o
-	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -lrt -lpthread -o $@ 
+epidemic_sim: obj/Map.o obj/EpidemicSim.o obj/Process.o obj/Utils.o obj/DataCollector.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -lrt -lpthread -lncurses -o $@ 
 
 obj/timer.o: src/timer.c 
 	mkdir -p obj

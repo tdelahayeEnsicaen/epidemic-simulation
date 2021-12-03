@@ -1,5 +1,6 @@
 #include "EpidemicSim.h"
 #include "Process.h"
+#include "DataCollector.h"
 
 #include "Map.h"
 #include "Utils.h"
@@ -7,8 +8,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
-
-FILE* pFile;
 
 #define SIM_TO_CITIZEN 0
 #define CITIZEN_TO_SIM 1
@@ -61,35 +60,34 @@ int main()
         switch(action)
         {
         case INIT:
-            printf("[EPI] Initialization\n");
+            //printf("[EPI] Initialization\n");
             initSimulation();
-            printf("[EPI] Running\n");
+            initDataCollector();
+            //printf("[EPI] Running\n");
 
             result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], INIT);
-
-            saveMap(pFile);
             break;
 
         case UPDATE:
-            printf("[EPI] Update\n");
+            //printf("[EPI] Update\n");
             updateSimulation();
+            updateDataCollector();
 
             result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], UPDATE);
-
-            saveMap(pFile);
             break;
 
         case DESTROY:
             result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], DESTROY);
 
-            printf("[EPI] Destroy\n");
+            //printf("[EPI] Destroy\n");
             destroySimulation();
+            destroyDataCollector();
 
             isRunning = false;
             break;
 
         default:
-            printf("[EPI] Error: invalid action %d\n", action);
+            //printf("[EPI] Error: invalid action %d\n", action);
             result = false;
             break;
         }
@@ -102,14 +100,6 @@ int main()
 
 void initSimulation()
 {
-    pFile = fopen("evolution.txt", "w");
-
-    if (!pFile)
-    {
-        printf("Cannot open file\n");
-        exit(EXIT_FAILURE);
-    }
-
     createMap();
 }
 
