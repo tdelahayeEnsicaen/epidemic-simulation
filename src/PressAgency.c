@@ -1,11 +1,10 @@
+#include "PressAgency.h"
 #include "Process.h"
-#include "Journalist.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <mqueue.h>
-#include <string.h>
 
 #define JOURNALISTS_TO_PRESS 0
 
@@ -64,34 +63,7 @@ bool update()
 
         mq_receive(queues[JOURNALISTS_TO_PRESS], buffer, attr.mq_msgsize, NULL);
 
-        enum NewsType type = buffer[0];
-        float cont;
-
-        switch (type)
-        {
-        case DEAD_COUNT:
-            printf("[PRESS] Dead count: %d\n", (int) (buffer[1] * 0.65f));
-            break;
-
-        case AVERAGE_CONTAMINATION:
-            memcpy(&cont, buffer + 1, sizeof(float));
-            printf("[PRESS] Avg contamination: %f\n", cont * 0.90f);
-            break;
-
-        case CONTAMINED_CITIZENS:
-            printf("[PRESS] Contamined citizens: %d\n", (int) (buffer[1] * 0.90f));
-            break;
-
-        case JOURNALIST_CONTAMINATION:
-            memcpy(&cont, buffer + 1, sizeof(float));
-
-            if (cont > 0.80f)
-                printf("[PRESS] Journalist contamination: %f\n", cont);
-            break;
-        
-        default:
-            break;
-        }
+        printMessage(buffer[0], buffer+1);
 
         result = mq_getattr(queues[JOURNALISTS_TO_PRESS], &attr);
 
@@ -107,4 +79,30 @@ bool destroy()
     mq_unlink(JOURNALISTS_TO_PRESS_NAME);
 
     return true;
+}
+
+void printMessage(NewsType type, char* msg)
+{
+    switch (type)
+    {
+    case DEAD_COUNT:
+        printf("[PRESS] Dead count: %d\n", (int) (msg[0] * 0.65f));
+        break;
+
+    case AVERAGE_CONTAMINATION:
+        printf("[PRESS] Avg contamination: %f\n", *((float*)msg) * 0.90f);
+        break;
+
+    case CONTAMINED_CITIZENS:
+        printf("[PRESS] Contamined citizens: %d\n", (int) (msg[0] * 0.90f));
+        break;
+
+    case JOURNALIST_CONTAMINATION:
+        if (*((float*)msg) > 0.80f)
+            printf("[PRESS] Journalist contamination: %f\n", *((float*)msg));
+        break;
+    
+    default:
+        break;
+    }
 }

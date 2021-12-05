@@ -5,52 +5,70 @@
 
 void sendNews(const Citizen* pJournalist, int queue)
 {
-    uint8_t contCount = 0;
-    uint8_t deadCount = 0;
+    sendDeadCount(queue);
+    sendAvgContamination(queue);
+    sendContaminedCitizens(queue);
+    sendJournalistContamination(pJournalist, queue);
+}
 
-    float cont = 0.0f;
+void sendDeadCount(int queue)
+{
+    uint8_t buffer[2 * sizeof(uint8_t)] = { DEAD_COUNT, 0 };
 
     for (uint8_t i = 0; i < CITIZEN_COUNT; i++)
     {
         const Citizen* pCitizen = getCitizen(i);
 
         lockCitizen(pCitizen);
-
-        contCount += pCitizen->contamination > 0.0f;
-        deadCount += pCitizen->status >= DEAD;
-
+        buffer[1] += pCitizen->status >= DEAD;
         unlockCitizen(pCitizen);
     }
+
+    mq_send(queue, (char*)buffer, 2 * sizeof(uint8_t), 10);
+}
+
+void sendAvgContamination(int queue)
+{
+    uint8_t buffer[sizeof(uint8_t) + sizeof(float)] = { AVERAGE_CONTAMINATION };
+    float* cont = (float*) (buffer + 1);
+
+    *cont = 0.0f;
 
     for (int x = 0; x < MAP_WIDTH; x++)
     {
         for (int y = 0; y < MAP_HEIGHT; y++)
         {
-            cont += getTile(x, y).contamination;
+            *cont += getTile(x, y).contamination;
         }
     }
     
-    cont /= MAP_WIDTH * MAP_HEIGHT;
+    *cont /= MAP_WIDTH * MAP_HEIGHT;
 
-    uint8_t msg[10];
+    mq_send(queue, (char*)buffer, sizeof(uint8_t) + sizeof(float), 5);
+}
 
-    msg[0] = (uint8_t)DEAD_COUNT;
-    msg[1] = deadCount;
+void sendContaminedCitizens(int queue)
+{
+    uint8_t buffer[2 * sizeof(uint8_t)] = { CONTAMINED_CITIZENS, 0 };
 
-    mq_send(queue, (char*)msg, 2, 10);
+    for (uint8_t i = 0; i < CITIZEN_COUNT; i++)
+    {
+        const Citizen* pCitizen = getCitizen(i);
 
-    msg[0] = (uint8_t)AVERAGE_CONTAMINATION;
-    memcpy(msg + 1, &cont, sizeof(float));
+        lockCitizen(pCitizen);
+        buffer[1] += pCitizen->contamination > 0.0f;
+        unlockCitizen(pCitizen);
+    }
 
-    mq_send(queue, (char*)msg, 1 + sizeof(float), 5);
+    mq_send(queue, (char*)buffer, 2 * sizeof(uint8_t), 2);
+}
 
-    msg[0] = (uint8_t)CONTAMINED_CITIZENS;
-    msg[1] = contCount;
+void sendJournalistContamination(const Citizen* pJournalist, int queue)
+{
+    uint8_t buffer[sizeof(uint8_t) + sizeof(float)] = { JOURNALIST_CONTAMINATION };
+    float* cont = (float*) (buffer + 1);
 
-    mq_send(queue, (char*)msg, 2, 2);
-
-    msg[0] = (uint8_t)JOURNALIST_CONTAMINATION;
-    memcpy(msg + 1, &pJournalist->contamination, sizeof(float));
-
-    mq_send(queue, (char*)msg, 1 + sizeof(float), 1);
+    *cont = pJournalist->contamination;
+    
+    mq_send(queue, (char*)buffer, sizeof(uint8_t) + sizeof(float), 1);
 }

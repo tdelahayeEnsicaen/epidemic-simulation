@@ -2,15 +2,10 @@
 #include "Process.h"
 #include "DataCollector.h"
 
-#include "Map.h"
 #include "Utils.h"
 
 #include "Firefigther.h"
 #include "Doctor.h"
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <fcntl.h>
 
 // ----------------- PROCESS INFORMATION ------------------
 
@@ -65,8 +60,6 @@ bool initialize()
 
     return true;
 }
-
-void propagateContamination(Tile src, int xDest, int yDest);
 
 const Point PROPAGATION_DIRECTIONS[8] = 
 { 
@@ -144,7 +137,7 @@ void propagateContamination(Tile src, int xDest, int yDest)
     if (dest.type != WASTELAND || src.contamination <= dest.contamination)
         return;
 
-    if (rand() % 100 >= 15)
+    if (genFloat() > 0.15f)
         return;
 
     const float diff = src.contamination - dest.contamination;

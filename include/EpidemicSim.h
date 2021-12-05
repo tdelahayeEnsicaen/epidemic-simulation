@@ -1,10 +1,8 @@
 #ifndef EPIDEMIC_SIM_H
 #define EPIDEMIC_SIM_H
 
-/*void initSimulation();
+#include "Map.h"
 
-void updateSimulation();
-
-void destroySimulation();*/
+void propagateContamination(Tile src, int xDest, int yDest);
 
 #endif

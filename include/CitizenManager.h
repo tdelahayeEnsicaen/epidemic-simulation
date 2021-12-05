@@ -1,11 +1,9 @@
 #ifndef CITIZEN_MANAGER_H
 #define CITIZEN_MANAGER_H
 
-/*void initCitizens();
+void waitSignal();
 
-void destroyCitizens();
-
-void updateCitizens();*/
+void nextStep();
 
 void *ordinaryPeopleHandler(void* pArg);
 
