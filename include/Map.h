@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 // MAP SIZE
 
@@ -11,10 +12,13 @@
 
 // TILE TYPES
 
-#define HOSPITAL 0
-#define FIRE_STATION 1
-#define HOUSE 2
-#define WASTELAND 3
+typedef enum
+{
+    HOSPITAL,
+    FIRE_STATION,
+    HOUSE,
+    WASTELAND
+} TileType;
 
 // TILE COUNT
 
@@ -25,10 +29,23 @@
 
 // CITIZEN TYPES
 
-#define ORDINARY_PEOPLE 0
-#define DOCTOR 1
-#define FIREFIGHTER 2
-#define JOURNALIST 3
+typedef enum
+{
+    ORDINARY_PEOPLE,
+    DOCTOR,
+    FIREFIGHTER,
+    JOURNALIST
+} CitizenType;
+
+// CITIZEN STATUS
+
+typedef enum
+{
+    HEALTHY,
+    SICK,
+    DEAD,
+    BURNED
+} CitizenStatus;
 
 // CITIZEN OFFSET
 
@@ -47,21 +64,26 @@
 
 typedef struct
 {
-    char type;
+    // TileType
+    uint8_t type;
     float contamination;
 } Tile;
 
 typedef struct 
 {
-    char id;
-    char type;
-    char x, y;
-    bool alive;
-    bool sick;
-    bool burned;
-    char dayOfSickness;
+    uint8_t id;
+    // CitizenType
+    uint8_t type;
+
+    uint8_t x, y;
+    // CitizenStatus
+    uint8_t status;
+    bool wantToEnterHospital;
+    bool hasContaminationDetector;
+    
+    uint8_t dayOfSickness;
     float contamination;
-    char data[4];
+    uint8_t data[4];
 } Citizen;
 
 void createMap();
@@ -72,16 +94,9 @@ void destroyMap();
 
 // ---------- TILES -----------
 
-/**
- * @brief Return the maximum number of people who can stand on the given tile 
- * type
- * 
- * @param tileType 
- * @return a positive integer
- */
-int getMaximumCapacity(char tileType);
+uint8_t getMaximumCapacity(TileType tileType);
 
-char getTileType(int x, int y);
+TileType getTileType(int x, int y);
 
 Tile getTile(int x, int y);
 
@@ -89,25 +104,17 @@ void increaseTileContamination(int x, int y, float increment);
 
 // --------- CITIZENS ---------
 
-char* getCitizenTypeName(char type);
+const char* getCitizenTypeName(CitizenType type);
 
 void lockCitizen(const Citizen* pCitizen);
 
 void unlockCitizen(const Citizen* pCitizen);
 
-Citizen* getCitizen(int id);
+Citizen* getCitizen(uint8_t id);
 
-/**
- * @brief Return the number of citizen at the given position
- * 
- * @param x 
- * @param y 
- * 
- * @return number of citizen
- */
-int getCitizenCount(int x, int y);
+uint32_t getCitizenCount(int x, int y);
 
-bool canAccess(const Citizen* pCitizen, int x, int y);
+bool canAccess(Citizen* pCitizen, int x, int y);
 
 /**
  * @brief Try to move the given citizen to the destination tile.
@@ -120,7 +127,7 @@ bool canAccess(const Citizen* pCitizen, int x, int y);
  * @param pCitizen
  * @param xDest 
  * @param yDest 
- * @return 1 if the method success 0 else
+ * @return true if the method success false else
  */
 bool moveCitizen(Citizen* pCitizen, int xDest, int yDest);
 

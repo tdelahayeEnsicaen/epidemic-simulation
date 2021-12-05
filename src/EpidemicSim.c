@@ -5,133 +5,140 @@
 #include "Map.h"
 #include "Utils.h"
 
+#include "Firefigther.h"
+#include "Doctor.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
 
-#define SIM_TO_CITIZEN 0
-#define CITIZEN_TO_SIM 1
-#define SIM_TO_TIMER 2
-#define TIMER_TO_SIM 3
+// ----------------- PROCESS INFORMATION ------------------
 
-int tubes[4];
-
-void openTubes()
+Process nextProcesses[] = 
 {
-    printf("[EPI] Open tubes\n");
-
-    createTube(SIM_TO_CITIZEN_NAME, O_WRONLY);
-    createTube(CITIZEN_TO_SIM_NAME, O_RDONLY);
-
-    createTube(SIM_TO_TIMER_NAME, O_WRONLY);
-    createTube(TIMER_TO_SIM_NAME, O_RDONLY);
-
-    tubes[SIM_TO_CITIZEN] = openTube(SIM_TO_CITIZEN_NAME, O_WRONLY);
-    tubes[CITIZEN_TO_SIM] = openTube(CITIZEN_TO_SIM_NAME, O_RDONLY);
-
-    tubes[SIM_TO_TIMER] = openTube(SIM_TO_TIMER_NAME, O_WRONLY);
-    tubes[TIMER_TO_SIM] = openTube(TIMER_TO_SIM_NAME, O_RDONLY);
-}
-
-void closeTubes()
-{
-    printf("[EPI] Close tubes\n");
-
-    closeTube(SIM_TO_CITIZEN_NAME, tubes[SIM_TO_CITIZEN], true);
-    closeTube(CITIZEN_TO_SIM_NAME, tubes[CITIZEN_TO_SIM], true);
-
-    closeTube(SIM_TO_TIMER_NAME, tubes[SIM_TO_TIMER], true);
-    closeTube(TIMER_TO_SIM_NAME, tubes[TIMER_TO_SIM], true);
-}
-
-int main()
-{
-    printf("[EPI] Start\n");
-
-    openTubes();
-
-    bool isRunning = true;
-
-    while (isRunning)
+    // PRESS AGENCY
     {
-        enum ProcessAction action = readAction(tubes[TIMER_TO_SIM]);
-        bool result;
-
-        switch(action)
-        {
-        case INIT:
-            //printf("[EPI] Initialization\n");
-            initSimulation();
-            initDataCollector();
-            //printf("[EPI] Running\n");
-
-            result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], INIT);
-            break;
-
-        case UPDATE:
-            //printf("[EPI] Update\n");
-            updateSimulation();
-            updateDataCollector();
-
-            result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], UPDATE);
-            break;
-
-        case DESTROY:
-            result = sendAction(tubes[SIM_TO_CITIZEN], tubes[CITIZEN_TO_SIM], DESTROY);
-
-            //printf("[EPI] Destroy\n");
-            destroySimulation();
-            destroyDataCollector();
-
-            isRunning = false;
-            break;
-
-        default:
-            //printf("[EPI] Error: invalid action %d\n", action);
-            result = false;
-            break;
-        }
-
-        sendResult(tubes[SIM_TO_TIMER], result);
+        .input = { .name = SIM_TO_PRESS_NAME },
+        .output = { .name = PRESS_TO_SIM_NAME }
+    },
+    // TIMER
+    {
+        .input = { .name = SIM_TO_TIMER_NAME },
+        .output = { .name = TIMER_TO_SIM_NAME }
+    },
+    // CITIZEN MANAGER
+    {
+        .input = { .name = SIM_TO_CITIZEN_NAME },
+        .output = { .name = CITIZEN_TO_SIM_NAME }
     }
+};
 
-    return 0;
+const char* getProcessName()
+{
+    return "EPI";
 }
 
-void initSimulation()
+Process* getPreviousProcess()
+{
+    return NULL;
+}
+
+Process* getNextProcesses(int* pSize)
+{
+    *pSize = 3;
+    return nextProcesses;
+}
+
+// ------------------ PROCESS LIFE CYCLE ------------------
+
+bool parseArguments(int argc, char const *argv[])
+{
+    argc = argc;
+    argv = argv;
+    return true;
+}
+
+bool initialize()
 {
     createMap();
+    initDataCollector();
+
+    return true;
 }
 
 void propagateContamination(Tile src, int xDest, int yDest);
 
-void updateSimulation()
+const Point PROPAGATION_DIRECTIONS[8] = 
+{ 
+    { +1, +1 }, { +1, +0 }, 
+    { +1, -1 }, { +0, +1 }, 
+    { +0, -1 }, { -1, +1 }, 
+    { -1, +0 }, { -1, -1 } 
+};
+
+bool update()
 {
     for (int x = 0; x < MAP_WIDTH; x++)
     {
         for (int y = 0; y < MAP_HEIGHT; y++)
         {
             const Tile src = getTile(x, y);
-            
-            if (src.type == WASTELAND)
+
+            switch (src.type)
             {
-                propagateContamination(src, x+1, y+1);
-                propagateContamination(src, x+1, y+0);
-                propagateContamination(src, x+1, y-1);
+            case WASTELAND:
+                for (uint8_t i = 0; i < 8; i++)
+                {
+                    propagateContamination(src, x + PROPAGATION_DIRECTIONS[i].x, y + PROPAGATION_DIRECTIONS[i].y);
+                }
+                break;
 
-                propagateContamination(src, x+0, y+1);
-                propagateContamination(src, x+0, y-1);
+            case FIRE_STATION:
+                for (uint8_t id = 0; id < CITIZEN_COUNT; id++)
+                {
+                    Citizen* pCitizen = getCitizen(id);
 
-                propagateContamination(src, x-1, y+1);
-                propagateContamination(src, x-1, y+0);
-                propagateContamination(src, x-1, y-1);
+                    if (pCitizen->x == x && pCitizen->y == y)
+                    {
+                        pCitizen->contamination = max(pCitizen->contamination - 0.20f, 0.0f);
+                        pCitizen->hasContaminationDetector = true;
+
+                        if (pCitizen->type == FIREFIGHTER)
+                        {
+                            injectPulverisator(pCitizen, 10.0f);
+                        }
+                    }
+                }
+                break;
+
+            case HOSPITAL:
+                for (uint8_t id = 0; id < CITIZEN_COUNT; id++)
+                {
+                    Citizen* pCitizen = getCitizen(id);
+
+                    if (pCitizen->type == DOCTOR && pCitizen->x == x && pCitizen->y == y)
+                    {
+                        pCitizen->data[CARE_POCKET_INDEX] = MAX_CARE_POCKET;
+                    }
+                }
+                break;
+            
+            default:
+                break;
             }
         }
     }
+
+    updateDataCollector();
+
+    return true;
 }
 
 void propagateContamination(Tile src, int xDest, int yDest)
 {
+    if (xDest < 0 || xDest >= MAP_WIDTH || yDest < 0 || yDest >= MAP_HEIGHT)
+        return;
+
     Tile dest = getTile(xDest, yDest);
 
     if (dest.type != WASTELAND || src.contamination <= dest.contamination)
@@ -145,8 +152,10 @@ void propagateContamination(Tile src, int xDest, int yDest)
     increaseTileContamination(xDest, yDest, diff * (0.01f + 0.19f * genFloat()));
 }
 
-void destroySimulation()
+bool destroy()
 {
     destroyMap();
-    closeTubes();
+    destroyDataCollector();
+
+    return true;
 }

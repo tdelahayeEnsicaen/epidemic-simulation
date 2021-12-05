@@ -5,14 +5,19 @@ Citizen* findPatient(int x, int y)
     float contamination = 0.0f;
     Citizen* pPatient = NULL;
 
-    for (int i=0; i < CITIZEN_COUNT; i++)
+    for (uint8_t i=0; i < CITIZEN_COUNT; i++)
     {
         Citizen* pCandidate = getCitizen(i);
 
-        if (pCandidate->alive && pCandidate->sick && pCandidate->x == x && pCandidate->y == y && pCandidate->contamination > contamination)
+        lockCitizen(pCandidate);
+
+        if (pCandidate->status == SICK && pCandidate->x == x && pCandidate->y == y && pCandidate->contamination > contamination)
         {
+            contamination = pCandidate->contamination;
             pPatient = pCandidate;
         }
+
+        unlockCitizen(pCandidate);
     }
     
     return pPatient;
@@ -20,26 +25,31 @@ Citizen* findPatient(int x, int y)
 
 void updateDoctor(Citizen* pDoctor, Tile tile)
 {
-    // TODO move to epidemic simulation
+    lockCitizen(pDoctor);
+    CitizenStatus status = pDoctor->status;
+    uint8_t dayOfSickness = pDoctor->dayOfSickness;
+    unlockCitizen(pDoctor);
+
+    if (status >= DEAD)
+        return;
+
     if (tile.type == HOSPITAL)
     {
-        lockCitizen(pDoctor);
-        pDoctor->data[0] = MAX_CARE_POCKET;
-        unlockCitizen(pDoctor);
+        pDoctor->data[DAY_OUT_OF_HOSPITAL] = 2;
+    }
+    else if (pDoctor->data[DAY_OUT_OF_HOSPITAL] > 0)
+    {
+        pDoctor->data[DAY_OUT_OF_HOSPITAL]--;
     }
 
     Citizen* pPatient;
 
-    lockCitizen(pDoctor);
-
-    if (pDoctor->sick)
+    if (status == SICK)
     {
-        pPatient = pDoctor->dayOfSickness < 10 ? pDoctor : NULL;
-        unlockCitizen(pDoctor);
+        pPatient = dayOfSickness < 10 ? pDoctor : NULL;
     }
     else
     {
-        unlockCitizen(pDoctor);
         pPatient = findPatient(pDoctor->x, pDoctor->y);
     }
 
@@ -48,14 +58,14 @@ void updateDoctor(Citizen* pDoctor, Tile tile)
         if (tile.type == HOSPITAL)
         {
             lockCitizen(pPatient);
-            pPatient->sick = false;
+            pPatient->status = HEALTHY;
             unlockCitizen(pPatient);
         }
-        else if (pDoctor->data[0] > 0)
+        else if (pDoctor->data[CARE_POCKET_INDEX] > 0)
         {
             lockCitizen(pPatient);
-            pDoctor->data[0]--;
-            pPatient->sick = false;
+            pDoctor->data[CARE_POCKET_INDEX]--;
+            pPatient->status = HEALTHY;
             unlockCitizen(pPatient);
         }
     }

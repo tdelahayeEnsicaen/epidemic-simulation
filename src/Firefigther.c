@@ -6,15 +6,15 @@
 
 void burnDeadBody(const Citizen* pFirefighter)
 {
-    for (int i=0; i < CITIZEN_COUNT; i++)
+    for (uint8_t i = 0; i < CITIZEN_COUNT; i++)
     {
         Citizen* pCitizen = getCitizen(i);
 
         lockCitizen(pCitizen);
 
-        if (!pCitizen->alive && !pCitizen->burned && pCitizen->x == pFirefighter->x && pCitizen->y == pFirefighter->y)
+        if (pCitizen->status == DEAD && pCitizen->x == pFirefighter->x && pCitizen->y == pFirefighter->y)
         {
-            pCitizen->burned = true;
+            pCitizen->status = BURNED;
         }
 
         unlockCitizen(pCitizen);
@@ -55,29 +55,29 @@ float extractPulverisator(Citizen* pFirefighter, float value)
 
 void decontaminate(Citizen* pFirefighter)
 {
-    if (!pFirefighter->alive)
+    if (pFirefighter->status >= DEAD)
         return;
 
     float remaining = extractPulverisator(pFirefighter, PULVERISATOR_BY_TURN);
 
-    for (int i=0; i < CITIZEN_COUNT && remaining > 0.0f; i++)
+    for (uint8_t i=0; i < CITIZEN_COUNT && remaining > 0.0f; i++)
     {
         if (i == pFirefighter->id)
             continue;
 
         Citizen* pCitizen = getCitizen(i);
 
-        if (pCitizen->alive && pCitizen->x == pFirefighter->x && pCitizen->y == pFirefighter->y)
-        {
-            lockCitizen(pCitizen);
+        lockCitizen(pCitizen);
 
+        if (pCitizen->status < DEAD && pCitizen->x == pFirefighter->x && pCitizen->y == pFirefighter->y)
+        {
             float remove = min(pCitizen->contamination, min(remaining, PULVERISATOR_BY_CITIZEN));
 
             pCitizen->contamination -= remove;
             remaining -= remove;
-
-            unlockCitizen(pCitizen);
         }
+
+        unlockCitizen(pCitizen);
     }
 
     if (remaining > 0.0f)

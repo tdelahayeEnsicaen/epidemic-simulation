@@ -7,4 +7,12 @@ void updateDataCollector();
 
 void destroyDataCollector();
 
+void drawLegendWindow();
+
+void drawTilesWindow();
+
+void drawCitizensWindow();
+
+void drawProgressionWindow();
+
 #endif

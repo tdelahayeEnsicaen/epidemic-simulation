@@ -1,11 +1,11 @@
 #ifndef CITIZEN_MANAGER_H
 #define CITIZEN_MANAGER_H
 
-void initCitizens();
+/*void initCitizens();
 
 void destroyCitizens();
 
-void updateCitizens();
+void updateCitizens();*/
 
 void *ordinaryPeopleHandler(void* pArg);
 

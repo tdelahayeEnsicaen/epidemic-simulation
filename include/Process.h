@@ -13,21 +13,76 @@
 #define SIM_TO_CITIZEN_NAME "./sim_to_citizen"
 #define CITIZEN_TO_SIM_NAME "./citizen_to_sim"
 
-enum ProcessAction
+#define SIM_TO_PRESS_NAME "./sim_to_press"
+#define PRESS_TO_SIM_NAME "./press_to_sim"
+
+// QUEUE NAMES
+
+#define JOURNALISTS_TO_PRESS_NAME "/journalists_to_press"
+
+typedef enum
 {
     INIT,
     UPDATE,
-    DESTROY
-};
+    DESTROY,
+    NONE = - 1
+} ProcessAction;
+
+typedef struct 
+{
+    const char* name;
+    int id;
+} Tube;
+
+typedef struct
+{
+    Tube input;
+    Tube output;
+} Process;
+
+// ------------------ PROCESS LIFE CYCLE ------------------
+
+ProcessAction getNextAction(ProcessAction previousAction, bool previousActionResult);
+
+bool parseArguments(int argc, char const *argv[]);
+
+bool initialize();
+
+bool update();
+
+bool destroy();
+
+// ----------------- PROCESS INFORMATION ------------------
+
+const char* getProcessName();
+
+/**
+ * @brief Return the process that should be executed before the running process
+ * if NULL then the running process will be considered as the main process
+ * 
+ * @return a pointer to a Process struct or NULL 
+ */
+Process* getPreviousProcess();
+
+/**
+ * @brief Return an array of process that should before executed after the 
+ * running process.
+ * 
+ * @param pSize Where the size of the array will be stored
+ * 
+ * @return an array of Process struct or NULL
+ */
+Process* getNextProcesses(int* pSize);
+
+// ----------------- PROCESS COMMUNICATION ----------------
 
 /**
  * @brief Try to create a tube with the given name if the operation fails then 
  * the process will automaticaly exit.
  * 
  * @param name 
- * @param flags 
  */
-void createTube(const char* name, int flags);
+void createTube(const char* name);
 
 /**
  * @brief Try to open a tube with the given name if the operation fails then 
@@ -43,9 +98,6 @@ int openTube(const char* name, int flags);
 /**
  * @brief Try to open all required tubes to make this process communicate with
  * others process if the operation fails this process will automaticaly exit.
- * 
- * If the running process is epidemic_sim then tubes will be first created 
- * before being opened.
  */
 void openTubes();
 
@@ -68,16 +120,15 @@ void closeTube(const char* name, int tube, bool destroy);
 void closeTubes();
 
 /**
- * @brief Send action to a process through requestTube and wait the result by
- * reading resultTube.
+ * @brief Send action to a process through its input tube and wait the result 
+ * by reading its output tube.
  * 
- * @param requestTube 
- * @param resultTube 
+ * @param process
  * @param action 
  * 
  * @return true if the action has been successfully completed
  */
-bool sendAction(int requestTube, int resultTube, enum ProcessAction action);
+bool sendAction(Process process, ProcessAction action);
 
 /**
  * @brief Read an action from the given tube
@@ -86,7 +137,7 @@ bool sendAction(int requestTube, int resultTube, enum ProcessAction action);
  * 
  * @return an action
  */
-enum ProcessAction readAction(int tube);
+ProcessAction readAction(Tube tube);
 
 /**
  * @brief Send the action result through the given tube
@@ -94,6 +145,6 @@ enum ProcessAction readAction(int tube);
  * @param tube 
  * @param result 
  */
-void sendResult(int tube, bool result);
+void sendResult(Tube tube, bool result);
 
 #endif

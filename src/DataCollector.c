@@ -1,3 +1,4 @@
+#include "DataCollector.h"
 #include "Map.h"
 
 #include <stdlib.h>
@@ -11,10 +12,11 @@ WINDOW* pTilesWindow;
 WINDOW* pCitizensWindow;
 WINDOW* pProgressionWindow;
 
-#define HOUSE_COLOR 4
-#define HOSPITAL_COLOR 5
-#define WASTELAND_COLOR 6
-#define FIRE_STATION_COLOR 7
+#define DEFAULT_COLOR 1
+#define HOUSE_COLOR 2
+#define HOSPITAL_COLOR 3
+#define WASTELAND_COLOR 4
+#define FIRE_STATION_COLOR 5
 
 void initDataCollector()
 {
@@ -32,12 +34,7 @@ void initDataCollector()
 
     start_color();
 
-    init_pair(1,COLOR_WHITE,COLOR_BLUE);
-
-    init_pair(2,COLOR_BLUE,COLOR_WHITE);
-
-    init_pair(3,COLOR_RED,COLOR_WHITE);
-
+    init_pair(DEFAULT_COLOR, COLOR_BLUE, COLOR_WHITE);
     init_pair(HOUSE_COLOR, COLOR_WHITE, COLOR_GREEN);
     init_pair(HOSPITAL_COLOR, COLOR_WHITE, COLOR_BLUE);
     init_pair(WASTELAND_COLOR, COLOR_WHITE, COLOR_YELLOW);
@@ -50,7 +47,7 @@ void initDataCollector()
     pLegendWindow = subwin(stdscr, 9, 22, 2, 2);
     pTilesWindow = subwin(stdscr, 9, 15, 2, 27);
     pCitizensWindow = subwin(stdscr, 9, 18, 2, 45);
-    pProgressionWindow = subwin(stdscr, 15, 30, 35, 2);
+    pProgressionWindow = subwin(stdscr, 9, 28, 12, 2);
 }
 
 int getColor(char type)
@@ -74,82 +71,29 @@ int getColor(char type)
     }
 }
 
+void writeWithAttribute(WINDOW* pWindow, int x, int y, int attribute, const char* text)
+{
+    wattron(pWindow, attribute);
+    mvwprintw(pWindow, x, y, text);
+    wattroff(pWindow, attribute);
+}
+
+void colorTile(WINDOW* pWindow, int x, int y, int color)
+{
+    writeWithAttribute(pWindow, x, y, COLOR_PAIR(color), "  ");
+}
+
 void updateDataCollector()
 {
     clear();
+    bkgd(COLOR_PAIR(DEFAULT_COLOR));
 
-    box(pLegendWindow, ACS_VLINE, ACS_HLINE);
-    box(pTilesWindow, ACS_VLINE, ACS_HLINE);
-    box(pCitizensWindow, ACS_VLINE, ACS_HLINE);
+    drawLegendWindow();
+    drawTilesWindow();
+    drawCitizensWindow();
+    drawProgressionWindow();
 
-    wbkgd(pLegendWindow, COLOR_PAIR(2));
-
-    wattron(pLegendWindow, A_UNDERLINE);
-    mvwprintw(pLegendWindow, 0, 0, "Legende");
-    wattroff(pLegendWindow, A_UNDERLINE);
-
-    wattron(pLegendWindow, COLOR_PAIR(HOUSE_COLOR));
-    mvwprintw(pLegendWindow, 2, 0, "  ");
-    wattroff(pLegendWindow, COLOR_PAIR(HOUSE_COLOR));
-
-    wattron(pLegendWindow, COLOR_PAIR(HOSPITAL_COLOR));
-    mvwprintw(pLegendWindow, 4, 0, "  ");
-    wattroff(pLegendWindow, COLOR_PAIR(HOSPITAL_COLOR));
-
-    wattron(pLegendWindow, COLOR_PAIR(WASTELAND_COLOR));
-    mvwprintw(pLegendWindow, 6, 0, "  ");
-    wattroff(pLegendWindow, COLOR_PAIR(WASTELAND_COLOR));
-
-    wattron(pLegendWindow, COLOR_PAIR(FIRE_STATION_COLOR));
-    mvwprintw(pLegendWindow, 8, 0, "  ");
-    wattroff(pLegendWindow, COLOR_PAIR(FIRE_STATION_COLOR));
-
-    mvwprintw(pLegendWindow, 2, 3, "Maison");
-    mvwprintw(pLegendWindow, 4, 3, "Hopital");
-    mvwprintw(pLegendWindow, 6, 3, "Terrain vague");
-    mvwprintw(pLegendWindow, 8, 3, "Caserne de pompiers");
-
-    wbkgd(pTilesWindow, COLOR_PAIR(2));
-
-    wattron(pTilesWindow, A_UNDERLINE);
-    mvwprintw(pTilesWindow, 0, 0, "Carte des lieux");
-    wattroff(pTilesWindow, A_UNDERLINE);
-
-    for (int x = 0; x < MAP_WIDTH; x++)
-    {
-        for (int y = 0; y < MAP_HEIGHT; y++)
-        {
-            const Tile tile = getTile(x, y);
-
-            wattron(pTilesWindow,COLOR_PAIR(getColor(tile.type)));
-
-            mvwprintw(pTilesWindow, 2 + y, 2 * x, "  ");
-            //mvwprintw(pTilesWindow, 2 + 2 * y + 1, 3 * x, "   ");
-
-            wattroff(pTilesWindow,COLOR_PAIR(getColor(tile.type)));
-        }
-        
-    }
-
-    wbkgd(pCitizensWindow, COLOR_PAIR(2));
-
-    wattron(pCitizensWindow, A_UNDERLINE);
-    mvwprintw(pCitizensWindow, 0, 0, "Carte des citoyens");
-    wattroff(pCitizensWindow, A_UNDERLINE);
-
-    for (int x = 0; x < MAP_WIDTH; x++)
-    {
-        for (int y = 0; y < MAP_HEIGHT; y++)
-        {
-            int count = getCitizenCount(x, y);
-
-            mvwprintw(pCitizensWindow, 2 + y, 2 * x, "%d ", count);
-        }
-    }
-
-    wrefresh(pLegendWindow);
-    wrefresh(pTilesWindow);
-    wrefresh(pCitizensWindow);
+    refresh();
 
     saveMap(pFile);
 }
@@ -161,8 +105,105 @@ void destroyDataCollector()
     getch();
     endwin();
 
-    free(pLegendWindow);
+    curs_set(1);
+    echo();
+
+    /*free(pLegendWindow);
     free(pTilesWindow);
     free(pCitizensWindow);
-    free(pProgressionWindow);
+    free(pProgressionWindow);*/
+}
+
+void drawLegendWindow()
+{
+    box(pLegendWindow, ACS_VLINE, ACS_HLINE);
+
+    wbkgd(pLegendWindow, COLOR_PAIR(DEFAULT_COLOR));
+
+    writeWithAttribute(pLegendWindow, 0, 0, A_UNDERLINE, "Legende");
+
+    colorTile(pLegendWindow, 2, 0, HOUSE_COLOR);
+    colorTile(pLegendWindow, 4, 0, HOSPITAL_COLOR);
+    colorTile(pLegendWindow, 6, 0, WASTELAND_COLOR);
+    colorTile(pLegendWindow, 8, 0, FIRE_STATION_COLOR);
+
+    mvwprintw(pLegendWindow, 2, 3, "Maison");
+    mvwprintw(pLegendWindow, 4, 3, "Hopital");
+    mvwprintw(pLegendWindow, 6, 3, "Terrain vague");
+    mvwprintw(pLegendWindow, 8, 3, "Caserne de pompiers");
+
+    wrefresh(pLegendWindow);
+}
+
+void drawTilesWindow()
+{
+    box(pTilesWindow, ACS_VLINE, ACS_HLINE);
+
+    wbkgd(pTilesWindow, COLOR_PAIR(DEFAULT_COLOR));
+
+    writeWithAttribute(pTilesWindow, 0, 0, A_UNDERLINE, "Carte des lieux");
+
+    for (int x = 0; x < MAP_WIDTH; x++)
+    {
+        for (int y = 0; y < MAP_HEIGHT; y++)
+        {
+            const Tile tile = getTile(x, y);
+
+            colorTile(pTilesWindow, 2 + y, 2 * x, getColor(tile.type));
+        }
+    }
+
+    wrefresh(pTilesWindow);
+}
+
+void drawCitizensWindow()
+{
+    box(pCitizensWindow, ACS_VLINE, ACS_HLINE);
+
+    wbkgd(pCitizensWindow, COLOR_PAIR(DEFAULT_COLOR));
+
+    writeWithAttribute(pCitizensWindow, 0, 0, A_UNDERLINE, "Carte des citoyens");
+
+    for (int x = 0; x < MAP_WIDTH; x++)
+    {
+        for (int y = 0; y < MAP_HEIGHT; y++)
+        {
+            int count = getCitizenCount(x, y);
+
+            mvwprintw(pCitizensWindow, 1 + y, 2 * x + 2, "%d ", count);
+        }
+    }
+    
+    wrefresh(pCitizensWindow);
+}
+
+void drawProgressionWindow()
+{
+    box(pProgressionWindow, ACS_VLINE, ACS_HLINE);
+
+    wbkgd(pProgressionWindow, COLOR_PAIR(DEFAULT_COLOR));
+
+    writeWithAttribute(pProgressionWindow, 0, 0, A_UNDERLINE, "Evolution de l'epidemie");
+
+    int aliveCount = 0;
+    int sickCount = 0;
+    int deadCount = 0;
+    int burnCount = 0;
+
+    for (int i = 0; i < CITIZEN_COUNT; i++)
+    {
+        const Citizen* pCitizen = getCitizen(i);
+
+        aliveCount += pCitizen->status == HEALTHY;
+        sickCount += pCitizen->status == SICK;
+        deadCount += pCitizen->status >= DEAD;
+        burnCount += pCitizen->status == BURNED;
+    }
+
+    mvwprintw(pProgressionWindow, 2, 0, "Personnes en bonne sante  %d", aliveCount);
+    mvwprintw(pProgressionWindow, 4, 0, "Personnes malades         %d", sickCount);
+    mvwprintw(pProgressionWindow, 6, 0, "Personnes decedees        %d", deadCount);
+    mvwprintw(pProgressionWindow, 8, 0, "Personnes brules          %d", burnCount);
+
+    wrefresh(pProgressionWindow);
 }

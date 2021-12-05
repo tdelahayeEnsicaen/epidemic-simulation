@@ -1,4 +1,7 @@
 #include "Map.h"
+#include "Utils.h"
+
+#include "Doctor.h"
 
 #include <memory.h>
 #include <time.h>
@@ -36,14 +39,16 @@ void createMap()
 
     pMap = mmap(NULL, sizeof(struct Map), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
+    sem_unlink("/tiles");
     tiles_semaphore = sem_open("/tiles", O_CREAT|O_RDWR, S_IRUSR|S_IWUSR, 1);
 
-    char name[12];
+    char name[15];
 
     for (int i = 0; i < CITIZEN_COUNT; i++)
     {
         sprintf(name, "/citizen_%d", i);
-        citizen_semaphores[i] = sem_open("/citizens", O_CREAT|O_RDWR, S_IRUSR|S_IWUSR, 1);
+        sem_unlink(name);
+        citizen_semaphores[i] = sem_open(name, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR, 1);
     }
 
     genTileMap();
@@ -57,7 +62,7 @@ void loadMap()
 
     if (fd == -1)
     {
-        printf("ERROR\n");
+        printf("ERROR Cannot open shared memory\n");
         return;
     }
 
@@ -65,7 +70,7 @@ void loadMap()
 
     tiles_semaphore = sem_open("/tiles", O_RDWR);
 
-    char name[12];
+    char name[15];
 
     for (int i = 0; i < CITIZEN_COUNT; i++)
     {
@@ -145,84 +150,89 @@ void genTileMap()
     }
 }
 
-void createCitizen(int id, char type, int x, int y, char data[4])
+void createCitizenWithPosition(uint8_t id, CitizenType type, uint8_t x, uint8_t y, void* data)
 {
+    pMap->citizens[id].id = id;
     pMap->citizens[id].type = type;
-    pMap->citizens[id].alive = 1;
-    pMap->citizens[id].sick = 0;
-    pMap->citizens[id].burned = 0;
+    pMap->citizens[id].x = x;
+    pMap->citizens[id].y = y;
+    pMap->citizens[id].status = HEALTHY;
+    pMap->citizens[id].wantToEnterHospital = false;
+    pMap->citizens[id].hasContaminationDetector = (type == FIREFIGHTER);
     pMap->citizens[id].dayOfSickness = 0;
     pMap->citizens[id].contamination = 0.0f;
 
     memcpy(pMap->citizens[id].data, data, 4);
+}
 
-    moveCitizen(&pMap->citizens[id], x, y);
+void createCitizen(uint8_t id, CitizenType type, void* data)
+{
+    createCitizenWithPosition(id, type, 255, 255, data);
 }
 
 void genCitizens()
 {
     srand(time(NULL));
 
-    // TODO Should required people be created before others ?
+    // PREPOSITIONED PEOPLE
+
+    uint8_t emptyData[4] = { 0, 0, 0, 0 };
+    uint8_t doctorData[4] = { 5, 0, 0, 0 };
+
+    float inStationPulverisator = 10.0f;
+    float outStationPulverisator = 5.0f;
+
+    createCitizenWithPosition(0, DOCTOR, 3, 3, doctorData);
+
+    createCitizenWithPosition(4, FIREFIGHTER, 6, 0, &inStationPulverisator);
+    createCitizenWithPosition(5, FIREFIGHTER, 0, 6, &inStationPulverisator);
 
     // DOCTORS
 
-    char data[4] = { 5, 0, 0, 0 };
-
-    createCitizen(0, DOCTOR, 3, 3, data);
-
-    for (int i = DOCTOR_OFFSET + 1; i < (DOCTOR_OFFSET + DOCTOR_COUNT); i++)
+    for (uint8_t i = DOCTOR_OFFSET + 1; i < (DOCTOR_OFFSET + DOCTOR_COUNT); i++)
     {
-        const int x = rand() % MAP_WIDTH;
-        const int y = rand() % MAP_HEIGHT;
-
-        createCitizen(i, DOCTOR, x, y, data); // TODO if in hospital set to 10
+        createCitizen(i, DOCTOR, doctorData);
     }
 
     // FIRE FIGTHERS
 
-    float pulverisator = 10.0f;
-    memcpy(data, &pulverisator, sizeof(float));
-
-    createCitizen(4, FIREFIGHTER, 6, 0, data);
-
-    createCitizen(5, FIREFIGHTER, 0, 6, data);
-
-    pulverisator = 5.0f;
-    memcpy(data, &pulverisator, sizeof(float));
-
-    for (int i = FIREFIGTHER_OFFSET + 2; i < (FIREFIGTHER_OFFSET + FIREFIGHTER_COUNT); i++)
+    for (uint8_t i = FIREFIGTHER_OFFSET + 2; i < (FIREFIGTHER_OFFSET + FIREFIGHTER_COUNT); i++)
     {
-        const int x = rand() % MAP_WIDTH;
-        const int y = rand() % MAP_HEIGHT;
-
-        createCitizen(i, FIREFIGHTER, x, y, data);
+        createCitizen(i, FIREFIGHTER, &outStationPulverisator);
     }
 
     // JOURNALISTS
 
-    memset(data, 0, 4);
-
-    for (int i = JOURNALIST_OFFSET; i < (JOURNALIST_OFFSET + JOURNALIST_COUNT); i++)
+    for (uint8_t i = JOURNALIST_OFFSET; i < (JOURNALIST_OFFSET + JOURNALIST_COUNT); i++)
     {
-        const int x = rand() % MAP_WIDTH;
-        const int y = rand() % MAP_HEIGHT;
-
-        createCitizen(i, JOURNALIST, x, y, data);
+        createCitizen(i, JOURNALIST, emptyData);
     }
 
     // ORDINARY PEOPLE
 
-    for (int i = ORDINARY_PEOPLE_OFFSET; i < (ORDINARY_PEOPLE_OFFSET + ORDINARY_PEOPLE_COUNT); i++)
+    for (uint8_t i = ORDINARY_PEOPLE_OFFSET; i < (ORDINARY_PEOPLE_OFFSET + ORDINARY_PEOPLE_COUNT); i++)
     {
-        const int x = rand() % MAP_WIDTH;
-        const int y = rand() % MAP_HEIGHT;
+        createCitizen(i, ORDINARY_PEOPLE, emptyData);
+    }
 
-        createCitizen(i, ORDINARY_PEOPLE, x, y, data);
+    for (uint8_t id = 0; id < CITIZEN_COUNT; id++)
+    {
+        if (pMap->citizens[id].x != 255)
+            continue;
+
+        uint8_t x;
+        uint8_t y;
+
+        do
+        {
+            x = rand() % MAP_WIDTH;
+            y = rand() % MAP_HEIGHT;
+        } 
+        while (!moveCitizen(&pMap->citizens[id], x, y));
     }
 }
 
-int getMaximumCapacity(char tileType)
+uint8_t getMaximumCapacity(TileType tileType)
 {
     switch (tileType)
     {
@@ -236,17 +246,10 @@ int getMaximumCapacity(char tileType)
     }
 }
 
-char getTileType(int x, int y)
+TileType getTileType(int x, int y)
 {
-    char type;
-
-    sem_wait(tiles_semaphore);
-
-    type = pMap->tiles[x][y].type;
-
-    sem_post(tiles_semaphore);
-
-    return type;
+    // Tile type doesn't change so don't lock semaphore
+    return pMap->tiles[x][y].type;
 }
 
 Tile getTile(int x, int y)
@@ -266,12 +269,12 @@ void increaseTileContamination(int x, int y, float increment)
 {
     sem_wait(tiles_semaphore);
 
-    pMap->tiles[x][y].contamination += increment;
+    pMap->tiles[x][y].contamination = min(pMap->tiles[x][y].contamination + increment, 1.0f);
 
     sem_post(tiles_semaphore);
 }
 
-char* getCitizenTypeName(char type)
+const char* getCitizenTypeName(CitizenType type)
 {
     switch (type)
     {
@@ -302,16 +305,16 @@ void unlockCitizen(const Citizen* pCitizen)
     sem_post(citizen_semaphores[pCitizen->id]);
 }
 
-Citizen* getCitizen(int id)
+Citizen* getCitizen(uint8_t id)
 {
     return &pMap->citizens[id];
 }
 
-int getCitizenCount(int x, int y)
+uint32_t getCitizenCount(int x, int y)
 {
-    int count = 0;
+    uint32_t count = 0;
 
-    for (int i = 0; i < CITIZEN_COUNT; i++)
+    for (uint8_t i = 0; i < CITIZEN_COUNT; i++)
     {
         const Citizen* pCitizen = getCitizen(i);
 
@@ -328,15 +331,31 @@ int getCitizenCount(int x, int y)
     return count;
 }
 
-bool canAccess(const Citizen* pCitizen, int x, int y)
+bool canAccess(Citizen* pCitizen, int x, int y)
 {
     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT)
         return false;
 
     const Tile tile = getTile(x, y);
-    const int citizenCount = getCitizenCount(x, y);
+    const uint32_t citizenCount = getCitizenCount(x, y);
 
     if (getMaximumCapacity(tile.type) == citizenCount)
+    {
+        if (tile.type == HOSPITAL && pCitizen->status == SICK)
+        {
+            lockCitizen(pCitizen);
+            pCitizen->wantToEnterHospital = true;
+            unlockCitizen(pCitizen);
+        }
+
+        return false;
+    }
+
+    lockCitizen(pCitizen);
+    const bool wantToEnterHospital = pCitizen->wantToEnterHospital;
+    unlockCitizen(pCitizen);
+
+    if (wantToEnterHospital && tile.type != HOSPITAL)
     {
         return false;
     }
@@ -344,13 +363,13 @@ bool canAccess(const Citizen* pCitizen, int x, int y)
     switch(tile.type)
     {
     case HOSPITAL:
-        return pCitizen->sick || pCitizen->type == DOCTOR || pCitizen->type == FIREFIGHTER;
+        return pCitizen->status == SICK || (pCitizen->type == DOCTOR && pCitizen->data[DAY_OUT_OF_HOSPITAL] == 0) || pCitizen->type == FIREFIGHTER;
 
     case FIRE_STATION:
         if (pCitizen->type == FIREFIGHTER)
             return true;
 
-        for (int i = FIREFIGTHER_OFFSET; i < (FIREFIGTHER_OFFSET + FIREFIGHTER_COUNT); i++)
+        for (uint8_t i = FIREFIGTHER_OFFSET; i < (FIREFIGTHER_OFFSET + FIREFIGHTER_COUNT); i++)
         {
             const Citizen* pFirefighter = getCitizen(i);
 
@@ -391,7 +410,7 @@ bool moveCitizen(Citizen* pCitizen, int xDest, int yDest)
 
 void saveMap(FILE* pFile)
 {
-    for (int i = 0; i < CITIZEN_COUNT; i++)
+    for (uint8_t i = 0; i < CITIZEN_COUNT; i++)
     {
         const Citizen* pCitizen = getCitizen(i);
 
@@ -402,35 +421,35 @@ void saveMap(FILE* pFile)
             float data;
             memcpy(&data, pCitizen->data, sizeof(float));
 
-            fprintf(pFile, "%s X=%d Y=%d Alive=%d Sick=%d DOS=%d Cont=%.2f Data=%f\n", 
+            fprintf(pFile, "%s id=%d X=%d Y=%d Status=%d DOS=%d Cont=%.2f Data=%f\n", 
             getCitizenTypeName(pCitizen->type),
+            pCitizen->id,
             pCitizen->x,
             pCitizen->y,
-            pCitizen->alive,
-            pCitizen->sick,
+            pCitizen->status,
             pCitizen->dayOfSickness,
             pCitizen->contamination,
             data);
         }
         else
         {
-            fprintf(pFile, "%s X=%d Y=%d Alive=%d Sick=%d DOS=%d Cont=%.2f Data=%d\n", 
+            fprintf(pFile, "%s id=%d X=%d Y=%d Status=%d DOS=%d Cont=%.2f Data=%d\n", 
             getCitizenTypeName(pCitizen->type),
+            pCitizen->id,
             pCitizen->x,
             pCitizen->y,
-            pCitizen->alive,
-            pCitizen->sick,
+            pCitizen->status,
             pCitizen->dayOfSickness,
             pCitizen->contamination,
-            pCitizen->data[0]);
+            pCitizen->data[CARE_POCKET_INDEX]);
         }
 
         unlockCitizen(pCitizen);
     }
 
-    for (int y = 0; y < MAP_HEIGHT; y++)
+    for (int x = 0; x < MAP_WIDTH; x++)
     {
-        for (int x = 0; x < MAP_WIDTH; x++)
+        for (int y = 0; y < MAP_HEIGHT; y++)
         {
             fprintf(pFile, "%d ", getCitizenCount(x, y));
         }
@@ -440,9 +459,9 @@ void saveMap(FILE* pFile)
 
     sem_wait(tiles_semaphore);
 
-    for (int y = 0; y < MAP_HEIGHT; y++)
+    for (int x = 0; x < MAP_WIDTH; x++)
     {
-        for (int x = 0; x < MAP_WIDTH; x++)
+        for (int y = 0; y < MAP_HEIGHT; y++)
         {
             fprintf(pFile, "%.2f ", pMap->tiles[x][y].contamination);
         }

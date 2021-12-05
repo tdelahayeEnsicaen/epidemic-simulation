@@ -4,6 +4,7 @@
 #include "Citizen.h"
 #include "Doctor.h"
 #include "Firefigther.h"
+#include "Journalist.h"
 
 #include <pthread.h>
 #include <memory.h>
@@ -16,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <mqueue.h>
 
 enum CitizenUpdateStep
 {
@@ -34,86 +36,58 @@ pthread_t threads[CITIZEN_COUNT];
 pthread_mutex_t updateStepMutex;
 pthread_cond_t updateStepCond;
 
-char isRunning = 1;
+pthread_mutex_t journalistMutex;
+
+bool isRunning = true;
 enum CitizenUpdateStep updateStep = WAIT;
-clock_t start_clock, end;
-int counter;
+int counter = 0;
 
-#define SIM_TO_CITIZEN 0
-#define CITIZEN_TO_SIM 1
+#define JOURNALISTS_TO_PRESS 0
 
-int tubes[2];
+int queues[1];
 
-void openTubes()
+// ----------------- PROCESS INFORMATION ------------------
+
+Process previousProcess =
 {
-    printf("[CIT] Open tubes\n");
+    .input = { .name = CITIZEN_TO_SIM_NAME },
+    .output = { .name = SIM_TO_CITIZEN_NAME }
+};
 
-    tubes[SIM_TO_CITIZEN] = openTube(SIM_TO_CITIZEN_NAME, O_RDONLY);
-    tubes[CITIZEN_TO_SIM] = openTube(CITIZEN_TO_SIM_NAME, O_WRONLY);
+const char* getProcessName()
+{
+    return "CIT";
 }
 
-void closeTubes()
+Process* getPreviousProcess()
 {
-    printf("[CIT] Close tubes\n");
-
-    closeTube(SIM_TO_CITIZEN_NAME, tubes[SIM_TO_CITIZEN], false);
-    closeTube(CITIZEN_TO_SIM_NAME, tubes[CITIZEN_TO_SIM], false);
+    return &previousProcess;
 }
 
-int main()
+Process* getNextProcesses(int* pSize)
 {
-    printf("[CIT] Start\n");
-
-    openTubes();
-
-    while (isRunning)
-    {
-        enum ProcessAction action = readAction(tubes[SIM_TO_CITIZEN]);
-        bool result;
-
-        switch (action)
-        {
-        case INIT:
-            printf("[CIT] Initialization\n");
-            initCitizens();
-            printf("[CIT] Running\n");
-            result = true;
-            break;
-
-        case UPDATE:
-            printf("[CTI] Update\n");
-            updateCitizens();
-            result = true;
-            break;
-
-        case DESTROY:
-            printf("[CIT] Destroy\n");
-            destroyCitizens();
-            isRunning = false;
-            result = true;
-            break;
-        
-        default:
-            printf("[CTI] Error: invalid action %d\n", action);
-            result = false;
-            break;
-        }
-
-        sendResult(tubes[CITIZEN_TO_SIM], result);
-    }
-
-    closeTubes();
-
-    return 0;
+    *pSize = 0;
+    return NULL;
 }
 
-void initCitizens()
+// ------------------ PROCESS LIFE CYCLE ------------------
+
+bool parseArguments(int argc, char const *argv[])
+{
+    argc = argc;
+    argv = argv;
+    return true;
+}
+
+bool initialize()
 {
     pthread_mutex_init(&updateMutex, NULL);
     pthread_cond_init(&updateCond, NULL);
 
     pthread_mutex_init(&updateStepMutex, NULL);
     pthread_cond_init(&updateStepCond, NULL);
+
+    pthread_mutex_init(&journalistMutex, NULL);
 
     loadMap();
 
@@ -144,65 +118,60 @@ void initCitizens()
             break;
         }
     }
+
+    queues[JOURNALISTS_TO_PRESS] = mq_open(JOURNALISTS_TO_PRESS_NAME, O_WRONLY);
+
+    return queues[JOURNALISTS_TO_PRESS] != -1;
 }
 
-void destroyCitizens()
+bool update()
 {
+    pthread_mutex_lock(&updateMutex);
+    pthread_cond_broadcast(&updateCond);
+    pthread_mutex_unlock(&updateMutex);
+
+    return true;
+}
+
+bool destroy()
+{
+    isRunning = false;
+
+    pthread_cond_broadcast(&updateCond);
+    pthread_mutex_unlock(&updateMutex);
+
     //pthread_cond_destroy(&updateCond);
     pthread_mutex_destroy(&updateMutex);
 
     //pthread_cond_destroy(&updateStepCond);
     pthread_mutex_destroy(&updateStepMutex);
-}
 
-void updateCitizens()
-{
-    pthread_mutex_lock(&updateMutex);
+    pthread_mutex_destroy(&journalistMutex);
 
-    if (counter == CITIZEN_COUNT)
-    {
-        double time = ((double) (end - start_clock)) / CLOCKS_PER_SEC * 1000.0;
-        printf("Citizens update execution time: %.2f\n", time);
-    }
-    else
-    {
-        printf("Citizens update took too many time\n");
-    }
-    
-    start_clock = clock();
-    counter = 0;
+    mq_close(queues[JOURNALISTS_TO_PRESS]);
 
-    pthread_cond_broadcast(&updateCond);
-    pthread_mutex_unlock(&updateMutex);
+    return true;
 }
 
 void waitSignal()
 {
     pthread_mutex_lock(&updateMutex);
-
-    counter++;
-
-    if (counter == CITIZEN_COUNT)
-        end = clock();
-
     pthread_cond_wait(&updateCond, &updateMutex);
     pthread_mutex_unlock(&updateMutex);
 }
-
-int c = 0;
 
 void nextStep()
 {
     pthread_mutex_lock(&updateStepMutex);
 
-    c++;
+    counter++;
 
-    if (c == CITIZEN_COUNT)
+    if (counter == CITIZEN_COUNT)
     {
         updateStep = (updateStep + 1) % 6;
 
         pthread_cond_broadcast(&updateStepCond);
-        c = 0;
+        counter = 0;
     }
     else
     {
@@ -341,14 +310,6 @@ void *firefighterHandler(void* pArg)
             if (hasMoved)
             {
                 burnDeadBody(pFirefighter);
-
-                const Tile tile = getTile(pFirefighter->x, pFirefighter->y);
-
-                // TODO move to epidemic sim
-                if (tile.type == FIRE_STATION)
-                {
-                    injectPulverisator(pFirefighter, 10.0f);
-                }
             }
 
             decontaminate(pFirefighter);
@@ -399,7 +360,9 @@ void *journalistHandler(void* pArg)
             break;
 
         case SPECIAL_ACTION:
-
+            pthread_mutex_lock(&journalistMutex);
+            sendNews(pJournalist, queues[JOURNALISTS_TO_PRESS]);
+            pthread_mutex_unlock(&journalistMutex);
             break;
 
         case WAIT:

@@ -1,109 +1,106 @@
 #include "Process.h"
 
-#include <stdlib.h>
-
 #include <stdio.h>
 #include <signal.h>
-
 #include <unistd.h>
-#include <fcntl.h>
 #include <string.h>
+
+#include <pthread.h>
 
 #define ARG_COUNT 2
 #define USAGE_FORMAT "%s [Period(in seconds)]\n"
 
-int turnCounter = 0;
 int period;
 
-#define SIM_TO_TIMER 0
-#define TIMER_TO_SIM 1
+pthread_mutex_t updateMutex;
+pthread_cond_t updateCond;
 
-int tubes[2];
+// ----------------- PROCESS INFORMATION ------------------
 
-void openTubes()
+Process previousProcess =
 {
-    printf("[TIM] Open tubes\n");
+    .input = { .name = TIMER_TO_SIM_NAME },
+    .output = { .name = SIM_TO_TIMER_NAME }
+};
 
-    tubes[SIM_TO_TIMER] = openTube(SIM_TO_TIMER_NAME, O_RDONLY);
-    tubes[TIMER_TO_SIM] = openTube(TIMER_TO_SIM_NAME, O_WRONLY);
+const char* getProcessName()
+{
+    return "TIMER";
 }
 
-void closeTubes()
+Process* getPreviousProcess()
 {
-    printf("[TIM] Close tubes\n");
-
-    close(tubes[SIM_TO_TIMER]);
-    close(tubes[TIMER_TO_SIM]);
+    return &previousProcess;
 }
+
+Process* getNextProcesses(int* pSize)
+{
+    *pSize = 0;
+    return NULL;
+}
+
+// ------------------ PROCESS LIFE CYCLE ------------------
 
 void tick(int sig)
 {
-    printf("[TIM] Update %d/%d\n", turnCounter+1, TURN_LIMIT);
     sig = sig;
 
-    enum ProcessAction action = UPDATE;
-    write(tubes[TIMER_TO_SIM], &action, sizeof(action));
+    pthread_mutex_lock(&updateMutex);
+    pthread_cond_broadcast(&updateCond);
+    pthread_mutex_unlock(&updateMutex);
 
-    bool result;
-    read(tubes[SIM_TO_TIMER], &result, sizeof(bool));
-    
-    turnCounter++;
-
-    if (!result)
-    {
-        action = DESTROY;
-        write(tubes[TIMER_TO_SIM], &action, sizeof(action));
-        closeTubes();
-        exit(EXIT_FAILURE);
-    }
-    else if (turnCounter == TURN_LIMIT)
-    {
-        action = DESTROY;
-        write(tubes[TIMER_TO_SIM], &action, sizeof(action));
-        closeTubes();
-        exit(EXIT_SUCCESS);
-    }
-    else
-    {
-        alarm(period);
-    }
+    alarm(period);
 }
 
-int main(int argc, char const *argv[])
+bool initialize()
 {
-    printf("[TIM] Start\n");
-
-    if (argc != ARG_COUNT)
-    {
-        fprintf(stderr, USAGE_FORMAT, argv[0]);
-        return EXIT_FAILURE;
-    }
-
-    sscanf(argv[1], "%d", &period);
-
     struct sigaction alarm_action;
 
     memset(&alarm_action, 0, sizeof(struct sigaction));
 
     alarm_action.sa_handler = &tick;
 
-    sigaction(SIGALRM, &alarm_action, NULL);
+    pthread_mutex_init(&updateMutex, NULL);
+    pthread_cond_init(&updateCond, NULL);
 
-    openTubes();
+    if (sigaction(SIGALRM, &alarm_action, NULL) != -1)
+    {
+        alarm(period);
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
 
-    printf("[TIM] Initialization\n");
+bool update()
+{
+    pthread_mutex_lock(&updateMutex);
+    pthread_cond_wait(&updateCond, &updateMutex);
+    pthread_mutex_unlock(&updateMutex);
 
-    enum ProcessAction action = INIT;
-    write(tubes[TIMER_TO_SIM], &action, sizeof(action));
+    return true;
+}
 
-    bool result;
-    read(tubes[SIM_TO_TIMER], &result, sizeof(bool));
+bool destroy()
+{
+    //pthread_cond_destroy(&updateCond);
+    pthread_mutex_destroy(&updateMutex);
 
-    printf("[TIM] Running\n");
+    return true;
+}
 
-    alarm(period);
+bool parseArguments(int argc, char const *argv[])
+{
+    if (argc != ARG_COUNT)
+    {
+        fprintf(stderr, USAGE_FORMAT, argv[0]);
+        return false;
+    }
 
-    for(;;);
+    sscanf(argv[1], "%d", &period);
+    printf("%d\n", period);
 
-    return EXIT_SUCCESS;
+    return true;
 }
