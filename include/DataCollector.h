@@ -15,4 +15,6 @@ void drawCitizensWindow();
 
 void drawProgressionWindow();
 
+void createPlot();
+
 #endif

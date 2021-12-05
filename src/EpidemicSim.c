@@ -7,6 +7,8 @@
 #include "Firefigther.h"
 #include "Doctor.h"
 
+#include <stdlib.h>
+
 // ----------------- PROCESS INFORMATION ------------------
 
 Process nextProcesses[] = 

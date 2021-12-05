@@ -88,16 +88,16 @@ void exchangeContaminationWithTile(Citizen* pCitizen, float contamination, Tile 
  * @brief Chance for a sick person or his dead body (if not burned) to 
  * contaminate a citizen in the same place.
  */
-#define NEARBY_CONTAMINATION_CHANCE 10.0f / 100.0f
+#define NEARBY_CONTAMINATION_CHANCE 0.10f
 /**
  * @brief Chance for a sick person or his dead body (if not burned) who is on a
  * wasteland tile to contaminate a citizen on adjacent wasteland tile.
  */
-#define DISTANT_CONTAMINATION_CHANCE 1.0f / 100.0f
+#define DISTANT_CONTAMINATION_CHANCE 0.01f
 /**
  * @brief Chance for a firefighter to avoid a contamination.
  */
-#define FIREFIGHTER_IMMUNIZATION_CHANCE 70.0f / 100.0f
+#define FIREFIGHTER_IMMUNIZATION_CHANCE 0.70f
 /**
  * @brief Contamination increment applied to a citizen when contaminate by an 
  * other citizen

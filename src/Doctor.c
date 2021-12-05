@@ -1,5 +1,7 @@
 #include "Doctor.h"
 
+#include <stdlib.h>
+
 Citizen* findPatient(int x, int y)
 {
     float contamination = 0.0f;

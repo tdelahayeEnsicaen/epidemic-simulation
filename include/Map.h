@@ -1,7 +1,6 @@
 #ifndef MAP_H
 #define MAP_H
 
-#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -130,9 +129,5 @@ bool canAccess(Citizen* pCitizen, int x, int y);
  * @return true if the method success false else
  */
 bool moveCitizen(Citizen* pCitizen, int xDest, int yDest);
-
-// -------- SAVE ---------
-
-void saveMap(FILE* pFile);
 
 #endif

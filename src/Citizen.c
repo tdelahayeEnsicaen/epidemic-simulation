@@ -125,8 +125,7 @@ bool canContaminateTarget(const Citizen* pSource, const Citizen* pTarget)
     }
     else if (pSource->x == pTarget->x && pSource->y == pTarget->y)
     {
-        float r = genFloat();
-        canContaminate = r < NEARBY_CONTAMINATION_CHANCE;
+        canContaminate = genFloat() < NEARBY_CONTAMINATION_CHANCE;
     }
     else if (abs(pSource->x - pTarget->x) <= 1 && abs(pSource->y - pTarget->y) <= 1)
     {
@@ -135,8 +134,7 @@ bool canContaminateTarget(const Citizen* pSource, const Citizen* pTarget)
 
         if (sourceTile.type == WASTELAND && targetTile.type == WASTELAND)
         {
-            float r = genFloat();
-            canContaminate = r < DISTANT_CONTAMINATION_CHANCE;
+            canContaminate = genFloat() < DISTANT_CONTAMINATION_CHANCE;
         }
         else
         {
@@ -147,7 +145,6 @@ bool canContaminateTarget(const Citizen* pSource, const Citizen* pTarget)
     {
         canContaminate = false;
     }
-    
     
     if (canContaminate && pTarget->type == FIREFIGHTER)
     {

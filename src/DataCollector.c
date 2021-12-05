@@ -6,6 +6,8 @@
 
 #include <ncurses.h>
 
+#include <unistd.h>
+
 FILE* pFile;
 WINDOW* pLegendWindow;
 WINDOW* pTilesWindow;
@@ -18,6 +20,8 @@ WINDOW* pProgressionWindow;
 #define WASTELAND_COLOR 4
 #define FIRE_STATION_COLOR 5
 
+int turnCounter = 0;
+
 void initDataCollector()
 {
     pFile = fopen("evolution.txt", "w");
@@ -28,7 +32,24 @@ void initDataCollector()
         exit(EXIT_FAILURE);
     }
 
-    saveMap(pFile);
+    fprintf(pFile, "Turn Healthy Sick Dead Burned\n");
+
+    int aliveCount = 0;
+    int sickCount = 0;
+    int deadCount = 0;
+    int burnCount = 0;
+
+    for (int i = 0; i < CITIZEN_COUNT; i++)
+    {
+        const Citizen* pCitizen = getCitizen(i);
+
+        aliveCount += pCitizen->status == HEALTHY;
+        sickCount += pCitizen->status == SICK;
+        deadCount += pCitizen->status >= DEAD;
+        burnCount += pCitizen->status == BURNED;
+    }
+
+    fprintf(pFile, "%d %d %d %d %d\n", turnCounter, aliveCount, sickCount, deadCount, burnCount);
 
     initscr();
 
@@ -44,10 +65,10 @@ void initDataCollector()
 
     noecho();
 
-    pLegendWindow = subwin(stdscr, 9, 22, 2, 2);
-    pTilesWindow = subwin(stdscr, 9, 15, 2, 27);
-    pCitizensWindow = subwin(stdscr, 9, 18, 2, 45);
-    pProgressionWindow = subwin(stdscr, 9, 28, 12, 2);
+    pLegendWindow = subwin(stdscr, 9, 23, 1, 2);
+    pTilesWindow = subwin(stdscr, 9, 16, 1, 27);
+    pCitizensWindow = subwin(stdscr, 9, 18, 1, 45);
+    pProgressionWindow = subwin(stdscr, 10, 61, 10, 2);
 }
 
 int getColor(char type)
@@ -87,20 +108,19 @@ void updateDataCollector()
 {
     clear();
     bkgd(COLOR_PAIR(DEFAULT_COLOR));
+    refresh();
 
     drawLegendWindow();
     drawTilesWindow();
     drawCitizensWindow();
     drawProgressionWindow();
-
-    refresh();
-
-    saveMap(pFile);
 }
 
 void destroyDataCollector()
 {
     fclose(pFile);
+
+    createPlot();
 
     getch();
     endwin();
@@ -122,15 +142,15 @@ void drawLegendWindow()
 
     writeWithAttribute(pLegendWindow, 0, 0, A_UNDERLINE, "Legende");
 
-    colorTile(pLegendWindow, 2, 0, HOUSE_COLOR);
-    colorTile(pLegendWindow, 4, 0, HOSPITAL_COLOR);
-    colorTile(pLegendWindow, 6, 0, WASTELAND_COLOR);
-    colorTile(pLegendWindow, 8, 0, FIRE_STATION_COLOR);
+    colorTile(pLegendWindow, 1, 0, HOUSE_COLOR);
+    colorTile(pLegendWindow, 3, 0, HOSPITAL_COLOR);
+    colorTile(pLegendWindow, 5, 0, WASTELAND_COLOR);
+    colorTile(pLegendWindow, 7, 0, FIRE_STATION_COLOR);
 
-    mvwprintw(pLegendWindow, 2, 3, "Maison");
-    mvwprintw(pLegendWindow, 4, 3, "Hopital");
-    mvwprintw(pLegendWindow, 6, 3, "Terrain vague");
-    mvwprintw(pLegendWindow, 8, 3, "Caserne de pompiers");
+    mvwprintw(pLegendWindow, 1, 3, "Maison");
+    mvwprintw(pLegendWindow, 3, 3, "Hopital");
+    mvwprintw(pLegendWindow, 5, 3, "Terrain vague");
+    mvwprintw(pLegendWindow, 7, 3, "Caserne de pompiers");
 
     wrefresh(pLegendWindow);
 }
@@ -149,7 +169,7 @@ void drawTilesWindow()
         {
             const Tile tile = getTile(x, y);
 
-            colorTile(pTilesWindow, 2 + y, 2 * x, getColor(tile.type));
+            colorTile(pTilesWindow, 1 + y, 2 * x + 1, getColor(tile.type));
         }
     }
 
@@ -179,6 +199,7 @@ void drawCitizensWindow()
 
 void drawProgressionWindow()
 {
+    turnCounter++;
     box(pProgressionWindow, ACS_VLINE, ACS_HLINE);
 
     wbkgd(pProgressionWindow, COLOR_PAIR(DEFAULT_COLOR));
@@ -204,6 +225,26 @@ void drawProgressionWindow()
     mvwprintw(pProgressionWindow, 4, 0, "Personnes malades         %d", sickCount);
     mvwprintw(pProgressionWindow, 6, 0, "Personnes decedees        %d", deadCount);
     mvwprintw(pProgressionWindow, 8, 0, "Personnes brules          %d", burnCount);
+    mvwprintw(pProgressionWindow, 5, 35, "TOUR %d/100", turnCounter);
 
     wrefresh(pProgressionWindow);
+
+    fprintf(pFile, "%d %d %d %d %d\n", turnCounter, aliveCount, sickCount, deadCount, burnCount);
+}
+
+void createPlot()
+{
+    int pid = fork();
+
+    if (pid == -1)
+    {
+        printf("Erreur: échec du fork()\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0)
+    {
+        execlp("gnuplot", "gnuplot","-persist", "plot.gp", NULL);
+        exit(EXIT_FAILURE);
+    }
 }

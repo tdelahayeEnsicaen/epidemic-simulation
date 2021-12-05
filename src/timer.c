@@ -100,7 +100,6 @@ bool parseArguments(int argc, char const *argv[])
     }
 
     sscanf(argv[1], "%d", &period);
-    printf("%d\n", period);
 
     return true;
 }
