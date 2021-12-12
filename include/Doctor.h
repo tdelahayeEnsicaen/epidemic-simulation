@@ -11,6 +11,11 @@
 #define MAX_CARE_POCKET 10
 
 /**
+ * @brief Time after which a doctor can no longer heal himself
+ */
+#define SELF_HEALING_DAY_LIMIT 10
+
+/**
  * @brief Index of care pocket number in Citizen.data
  */
 #define CARE_POCKET_INDEX 0
@@ -18,6 +23,12 @@
  * @brief Index of day out of hospital in Citizen.data
  */
 #define DAY_OUT_OF_HOSPITAL 1
+
+/**
+ * @brief Number of days that a doctor must wait before he can enter in an 
+ * hospital
+ */
+#define MIN_DAY_OUT_OF_HOSPITAL 2
 
 /**
  * @brief Find the sick citizen with the highest contamination rate at the 

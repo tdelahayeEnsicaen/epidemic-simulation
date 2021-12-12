@@ -75,7 +75,7 @@ bool updatePosition(Citizen* pCitizen);
  * contamination.
  * 
  * When the citizen is in fire station he only received 0% of incoming 
- * contamination. And his contamination decrease by 0.20.
+ * contamination.
  * 
  * @param pCitizen 
  * @param contamination Citizen contamination level

@@ -37,7 +37,7 @@ void updateDoctor(Citizen* pDoctor, Tile tile)
 
     if (tile.type == HOSPITAL)
     {
-        pDoctor->data[DAY_OUT_OF_HOSPITAL] = 2;
+        pDoctor->data[DAY_OUT_OF_HOSPITAL] = DAY_OUT_OF_HOSPITAL;
     }
     else if (pDoctor->data[DAY_OUT_OF_HOSPITAL] > 0)
     {
@@ -48,7 +48,7 @@ void updateDoctor(Citizen* pDoctor, Tile tile)
 
     if (status == SICK)
     {
-        pPatient = dayOfSickness < 10 ? pDoctor : NULL;
+        pPatient = dayOfSickness < SELF_HEALING_DAY_LIMIT ? pDoctor : NULL;
     }
     else
     {

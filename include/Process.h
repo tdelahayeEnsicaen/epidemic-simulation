@@ -1,3 +1,15 @@
+/**
+ * @file Process.h
+ * @brief Common header of the different processes (epidemic_sim, citizen_manager, press_agency and timer).
+ * Each process must define the following functions in its own source code:
+ *  - parseArguments
+ *  - initialize
+ *  - update
+ *  - destroy
+ *  - getProcessName
+ *  - getPreviousProcess
+ *  - getNextProcesses
+ */
 #ifndef PROCESS_H
 #define PROCESS_H
 
@@ -115,7 +127,7 @@ void closeTube(const char* name, int tube, bool destroy);
 /**
  * @brief Close all tubes previously opened by this process.
  * 
- * If the running process is epidemic_sim then tubes will be destroyed.
+ * If the running process is the main process then tubes will be destroyed.
  */
 void closeTubes();
 

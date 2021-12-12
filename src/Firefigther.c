@@ -26,7 +26,7 @@ void injectPulverisator(Citizen* pFirefighter, float value)
     float storage;
     memcpy(&storage, pFirefighter->data, sizeof(float));
 
-    storage = min(storage + value, 10.0f);
+    storage = min(storage + value, PULVERISATOR_CAPACITY);
 
     memcpy(pFirefighter->data, &storage, sizeof(float));
 }

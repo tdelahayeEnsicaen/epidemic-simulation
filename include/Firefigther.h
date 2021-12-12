@@ -3,10 +3,18 @@
 
 #include "Map.h"
 
+#define PULVERISATOR_CAPACITY 10.0f
+/**
+ * @brief Amount of pulverisator that can be used by a firefighter by turn
+ */
 #define PULVERISATOR_BY_TURN 1.0f
-
+/**
+ * @brief Amount of pulverisator that can be used on a single citizen by turn
+ */
 #define PULVERISATOR_BY_CITIZEN 0.20f
-
+/**
+ * @brief Amount of pulverisator that can be used on a single tile by turn
+ */
 #define PULVERISATOR_BY_TILE 0.20f
 
 /**
