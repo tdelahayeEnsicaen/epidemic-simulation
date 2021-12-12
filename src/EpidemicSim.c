@@ -100,7 +100,7 @@ bool update()
 
                         if (pCitizen->type == FIREFIGHTER)
                         {
-                            injectPulverisator(pCitizen, 10.0f);
+                            injectPulverisator(pCitizen, PULVERISATOR_CAPACITY);
                         }
                     }
                 }
