@@ -12,7 +12,7 @@ make
 # Lancement du programme 
 Lancer chaque commande dans un terminal différent et dans l'ordre spécifié:
 ```bash
-./epidemic_simulation
+./epidemic_sim
 ```
 
 ```bash
