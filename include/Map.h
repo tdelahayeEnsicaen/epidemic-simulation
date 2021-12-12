@@ -77,6 +77,7 @@ typedef struct
     uint8_t x, y;
     // CitizenStatus
     uint8_t status;
+    uint8_t dayInHospital;
     bool wantToEnterHospital;
     bool hasContaminationDetector;
     

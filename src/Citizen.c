@@ -40,10 +40,19 @@ bool updatePosition(Citizen* pCitizen)
                 }
                 unlockCitizen(pOther);
             }
+
+            pCitizen->dayInHospital++;
         }
     }
+    else
+    {
+        pCitizen->dayInHospital = 0;
+    }
+    
+    bool willMove = pCitizen->type != DOCTOR && pCitizen->dayInHospital >= MAX_DAY_IN_HOSPITAL;
+    willMove |= (genFloat() < CITIZEN_MOVE_PROBABILITY);
 
-    if (genFloat() < CITIZEN_MOVE_PROBABILITY)
+    if (willMove)
     {
         Point directions[8];
         genDirList(directions);

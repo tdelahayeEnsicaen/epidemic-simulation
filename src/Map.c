@@ -391,7 +391,7 @@ bool canAccess(Citizen* pCitizen, int x, int y)
 bool moveCitizen(Citizen* pCitizen, int xDest, int yDest)
 {
     if (pCitizen->x == xDest && pCitizen->y == yDest)
-        return true;
+        return false;
 
     if (canAccess(pCitizen, xDest, yDest))
     {

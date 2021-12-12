@@ -11,6 +11,10 @@
  * @brief Chance for a citizen to move at each turn
  */
 #define CITIZEN_MOVE_PROBABILITY 0.40f
+/**
+ * @brief Number of day that a cured citizen can stay in hospital (except doctor)
+ */
+#define MAX_DAY_IN_HOSPITAL 2
 
 /**
  * @brief Update citizen position.
